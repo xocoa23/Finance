@@ -43,11 +43,24 @@ jobs:
         id: discover
         run: |
           cd ios
-          WORKSPACE=$(ls -d *.xcworkspace 2>/dev/null | head -1)
-          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json | python3 -c "import sys, json; print(json.load(sys.stdin)['workspace']['schemes'][0])")
+          echo "=== ios/ contents ==="
+          ls -la
+          echo ""
+          PROJECT=$(ls -d *.xcodeproj 2>/dev/null | head -1 | sed 's/\.xcodeproj$//')
+          WORKSPACE="${PROJECT}.xcworkspace"
+          if [ -z "$PROJECT" ] || [ ! -d "$WORKSPACE" ]; then
+            echo "ERROR: could not derive project/workspace"
+            exit 1
+          fi
+          echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
           echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
-          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
-          echo "Workspace: $WORKSPACE | Scheme: $SCHEME"
+          echo "scheme=$PROJECT" >> "$GITHUB_OUTPUT"
+          echo "Project: $PROJECT"
+          echo "Workspace: $WORKSPACE"
+          echo "Scheme:    $PROJECT"
+          echo ""
+          echo "=== All available schemes (for reference) ==="
+          xcodebuild -workspace "$WORKSPACE" -list 2>&1 | head -80
 
       - name: Build (unsigned)
         run: |
@@ -71,8 +84,13 @@ jobs:
           cd ios
           APP_PATH=$(find build -type d -name "*.app" -path "*/Release-iphoneos/*" | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: no .app produced. Build tree:"
-            find build -type d -name "*.app" 2>/dev/null
+            echo "ERROR: no .app produced. Diagnostic dump of build/ tree:"
+            echo "--- All .app folders found ---"
+            find build -type d -name "*.app" 2>/dev/null || echo "(none)"
+            echo "--- build/Build/Products/ contents ---"
+            ls -la build/Build/Products/ 2>/dev/null || echo "(missing)"
+            echo "--- Full build/ tree (first 100 entries) ---"
+            find build -maxdepth 5 -type d 2>/dev/null | head -100
             exit 1
           fi
           echo "Found .app at: $APP_PATH"
