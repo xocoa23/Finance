@@ -49,26 +49,34 @@ jobs:
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
           echo "Workspace: $WORKSPACE | Scheme: $SCHEME"
 
-      - name: Archive (unsigned)
+      - name: Build (unsigned)
         run: |
           cd ios
-          xcodebuild archive \
+          xcodebuild \
             -workspace "${{ steps.discover.outputs.workspace }}" \
             -scheme "${{ steps.discover.outputs.scheme }}" \
             -configuration Release \
-            -archivePath "$PWD/build/App.xcarchive" \
+            -sdk iphoneos \
+            -derivedDataPath build \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
-            ONLY_ACTIVE_ARCH=NO
+            ONLY_ACTIVE_ARCH=NO \
+            build
 
       - name: Package IPA
         run: |
           cd ios
+          APP_PATH=$(find build -type d -name "*.app" -path "*/Release-iphoneos/*" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: no .app produced. Build tree:"
+            find build -type d -name "*.app" 2>/dev/null
+            exit 1
+          fi
+          echo "Found .app at: $APP_PATH"
           mkdir -p Payload
-          APP_PATH=$(ls -d build/App.xcarchive/Products/Applications/*.app | head -1)
           cp -R "$APP_PATH" Payload/
           IPA_NAME="FinancasPessoais-$(date -u +%Y%m%d-%H%M%S).ipa"
           zip -r "$IPA_NAME" Payload
