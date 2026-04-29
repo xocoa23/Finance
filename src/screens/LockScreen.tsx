@@ -5,11 +5,15 @@ import * as Haptics from 'expo-haptics';
 import { PinPad } from '../components/PinPad';
 import { Icon } from '../components/Icon';
 import { useAuth } from '../hooks/useAuth';
-import { COLORS, RADIUS, SPACING } from '../types';
+import { RADIUS, SPACING } from '../types';
+import { useTheme } from '../hooks/useTheme';
 
 type Mode = 'choice' | 'pin' | 'setup-create' | 'setup-confirm';
 
 export function LockScreen() {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const auth = useAuth();
   const isSetup = auth.state === 'setup';
   const [mode, setMode] = useState<Mode>(isSetup ? 'setup-create' : 'choice');
@@ -67,7 +71,7 @@ export function LockScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.container}>
           <View style={styles.logoCircle}>
-            <Icon name="wallet" size={36} color={COLORS.primary} />
+            <Icon name="wallet" size={36} color={colors.primary} />
           </View>
           <Text style={styles.appName}>Finanças</Text>
           <View style={styles.pinArea}>
@@ -92,7 +96,7 @@ export function LockScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.container}>
         <View style={styles.logoCircle}>
-          <Icon name="wallet" size={36} color={COLORS.primary} />
+          <Icon name="wallet" size={36} color={colors.primary} />
         </View>
         <Text style={styles.appName}>Finanças</Text>
         <Text style={styles.tagline}>Seus dados, só seus.</Text>
@@ -129,28 +133,28 @@ export function LockScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (colors: any) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, alignItems: 'center', paddingTop: 80, paddingHorizontal: SPACING.xl },
   logoCircle: {
     width: 80, height: 80, borderRadius: 40,
-    backgroundColor: COLORS.primarySoft,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center', justifyContent: 'center',
     marginBottom: SPACING.md,
   },
-  appName: { color: COLORS.text, fontSize: 26, fontWeight: '700', letterSpacing: -0.5 },
-  tagline: { color: COLORS.textSecondary, fontSize: 14, marginTop: 4, marginBottom: SPACING.lg },
+  appName: { color: colors.text, fontSize: 26, fontWeight: '700', letterSpacing: -0.5 },
+  tagline: { color: colors.textSecondary, fontSize: 14, marginTop: 4, marginBottom: SPACING.lg },
   pinArea: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
   choiceArea: { width: '100%', alignItems: 'center', gap: SPACING.md },
   bigBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: SPACING.sm,
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
     paddingVertical: SPACING.lg, paddingHorizontal: SPACING.xl,
     borderRadius: RADIUS.lg,
     width: '100%',
   },
   bigBtnText: { color: '#0a0a0b', fontSize: 16, fontWeight: '700' },
   secondaryBtn: { paddingVertical: SPACING.md, paddingHorizontal: SPACING.lg },
-  secondaryBtnText: { color: COLORS.primary, fontSize: 15, fontWeight: '600' },
+  secondaryBtnText: { color: colors.primary, fontSize: 15, fontWeight: '600' },
 });

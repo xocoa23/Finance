@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import * as Haptics from 'expo-haptics';
-import { useTransactions, useCategories, useFixedExpenses } from '../hooks/useStorage';
+import { useTransactions, useCategories, useFixedExpenses, useGoals } from '../hooks/useStorage';
 import { useHideValues } from '../hooks/useHideValues';
 import { useMonthlyIncome } from '../hooks/useMonthlyIncome';
 import { TransactionCard } from '../components/TransactionCard';
@@ -20,7 +20,8 @@ import { Icon } from '../components/Icon';
 import { CategoryDot } from '../components/CategoryDot';
 import { MoneyText } from '../components/MoneyText';
 import { HistoricoModal } from './HistoricoModal';
-import { COLORS, RADIUS, SPACING } from '../types';
+import { RADIUS, SPACING } from '../types';
+import { useTheme } from '../hooks/useTheme';
 import { getCurrentMonthKey, getGreeting } from '../utils/formatters';
 
 function formatPeriod(monthKey: string): string {
@@ -37,11 +38,15 @@ function shiftMonth(monthKey: string, delta: number): string {
 }
 
 export function DashboardScreen() {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const { items: transactions } = useTransactions();
   const { items: categories } = useCategories();
   const { items: fixed } = useFixedExpenses();
+  const { items: goals } = useGoals();
   const [hidden, toggleHidden] = useHideValues();
-  const [rendaMensal] = useMonthlyIncome();
+  const { rendaLiquida: rendaMensal } = useMonthlyIncome();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [periodKey, setPeriodKey] = useState(getCurrentMonthKey());
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -66,9 +71,21 @@ export function DashboardScreen() {
       .filter((f) => !f.pagoNoMes?.[periodKey])
       .reduce((s, f) => s + f.valor, 0);
     const aPagar = isCurrent ? fixosPendentes : 0;
-    const saldoProjetado = rendaMensal - fixosTotal - despesas;
-    return { receitas, despesas, saldo: receitas - despesas, aPagar, fixosTotal, saldoProjetado };
-  }, [transactions, fixed, periodKey, isCurrent, rendaMensal]);
+    const aportesMensais = goals.reduce(
+      (s, g) => s + (g.valorMensalFixo ?? 0),
+      0,
+    );
+    const saldoProjetado = rendaMensal - fixosTotal - despesas - aportesMensais;
+    return {
+      receitas,
+      despesas,
+      saldo: receitas - despesas,
+      aPagar,
+      fixosTotal,
+      aportesMensais,
+      saldoProjetado,
+    };
+  }, [transactions, fixed, goals, periodKey, isCurrent, rendaMensal]);
 
   const lastFive = useMemo(() => {
     return transactions.filter((t) => t.data.startsWith(periodKey)).slice(0, 5);
@@ -89,7 +106,7 @@ export function DashboardScreen() {
         return {
           id: catId,
           nome: cat?.nome ?? 'Outros',
-          cor: cat?.cor ?? COLORS.textMuted,
+          cor: cat?.cor ?? colors.textMuted,
           valor,
           pct: valor / total,
         };
@@ -112,7 +129,7 @@ export function DashboardScreen() {
               activeOpacity={0.7}
             >
               <Text style={styles.periodText}>{formatPeriod(periodKey)}</Text>
-              <Icon name="chevron-down" size={14} color={COLORS.textSecondary} />
+              <Icon name="chevron-down" size={14} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           <TouchableOpacity
@@ -123,7 +140,7 @@ export function DashboardScreen() {
             <Icon
               name={hidden ? 'eye-off-outline' : 'eye-outline'}
               size={20}
-              color={hidden ? COLORS.warning : COLORS.text}
+              color={hidden ? colors.warning : colors.text}
             />
           </TouchableOpacity>
           <TouchableOpacity
@@ -131,7 +148,7 @@ export function DashboardScreen() {
             onPress={() => setHistoryOpen(true)}
             activeOpacity={0.7}
           >
-            <Icon name="bar-chart-outline" size={20} color={COLORS.text} />
+            <Icon name="bar-chart-outline" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -141,19 +158,19 @@ export function DashboardScreen() {
             value={summary.saldo}
             style={[
               styles.balanceValue,
-              { color: summary.saldo >= 0 ? COLORS.primary : COLORS.danger },
+              { color: summary.saldo >= 0 ? colors.primary : colors.danger },
             ]}
           />
           <View style={styles.balanceRow}>
             <View style={styles.balanceItem}>
-              <View style={[styles.miniDot, { backgroundColor: COLORS.primary }]} />
+              <View style={[styles.miniDot, { backgroundColor: colors.primary }]} />
               <View>
                 <Text style={styles.balanceItemLabel}>Receitas</Text>
                 <MoneyText value={summary.receitas} style={styles.balanceItemValue} />
               </View>
             </View>
             <View style={styles.balanceItem}>
-              <View style={[styles.miniDot, { backgroundColor: COLORS.danger }]} />
+              <View style={[styles.miniDot, { backgroundColor: colors.danger }]} />
               <View>
                 <Text style={styles.balanceItemLabel}>Despesas</Text>
                 <MoneyText value={summary.despesas} style={styles.balanceItemValue} />
@@ -165,7 +182,7 @@ export function DashboardScreen() {
         {isCurrent && rendaMensal > 0 && (
           <View style={styles.projectionCard}>
             <View style={styles.projectionHeader}>
-              <Icon name="trending-up-outline" size={16} color={COLORS.textSecondary} />
+              <Icon name="trending-up-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.projectionLabel}>Projeção do mês</Text>
             </View>
             <View style={styles.projectionRow}>
@@ -177,7 +194,7 @@ export function DashboardScreen() {
               <MoneyText
                 value={summary.fixosTotal}
                 prefix="− "
-                style={[styles.projectionItemValue, { color: COLORS.danger }]}
+                style={[styles.projectionItemValue, { color: colors.danger }]}
               />
             </View>
             <View style={styles.projectionRow}>
@@ -185,16 +202,26 @@ export function DashboardScreen() {
               <MoneyText
                 value={summary.despesas}
                 prefix="− "
-                style={[styles.projectionItemValue, { color: COLORS.danger }]}
+                style={[styles.projectionItemValue, { color: colors.danger }]}
               />
             </View>
+            {summary.aportesMensais > 0 && (
+              <View style={styles.projectionRow}>
+                <Text style={styles.projectionItemLabel}>Aportes em metas</Text>
+                <MoneyText
+                  value={summary.aportesMensais}
+                  prefix="− "
+                  style={[styles.projectionItemValue, { color: colors.warning }]}
+                />
+              </View>
+            )}
             <View style={[styles.projectionRow, styles.projectionTotal]}>
               <Text style={styles.projectionTotalLabel}>Sobra prevista</Text>
               <MoneyText
                 value={summary.saldoProjetado}
                 style={[
                   styles.projectionTotalValue,
-                  { color: summary.saldoProjetado >= 0 ? COLORS.primary : COLORS.danger },
+                  { color: summary.saldoProjetado >= 0 ? colors.primary : colors.danger },
                 ]}
               />
             </View>
@@ -204,7 +231,7 @@ export function DashboardScreen() {
         {isCurrent && summary.aPagar > 0 && (
           <View style={styles.alertCard}>
             <View style={styles.alertIcon}>
-              <Icon name="alert-circle" size={20} color={COLORS.warning} />
+              <Icon name="alert-circle" size={20} color={colors.warning} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.alertTitle}>Contas a pagar</Text>
@@ -240,7 +267,7 @@ export function DashboardScreen() {
           <Text style={styles.sectionTitle}>Últimos lançamentos</Text>
           {lastFive.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Icon name="document-text-outline" size={32} color={COLORS.textMuted} />
+              <Icon name="document-text-outline" size={32} color={colors.textMuted} />
               <Text style={styles.emptyText}>Nenhum lançamento neste mês</Text>
             </View>
           ) : (
@@ -273,6 +300,9 @@ interface PickerProps {
 }
 
 function PeriodPickerModal({ visible, currentKey, onClose, onSelect }: PickerProps) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const [anchor, setAnchor] = useState(currentKey);
 
   React.useEffect(() => {
@@ -294,11 +324,11 @@ function PeriodPickerModal({ visible, currentKey, onClose, onSelect }: PickerPro
         <View style={styles.pickerCard}>
           <View style={styles.pickerHeader}>
             <TouchableOpacity onPress={() => setAnchor(shiftMonth(anchor, -12))}>
-              <Icon name="chevron-back" size={22} color={COLORS.text} />
+              <Icon name="chevron-back" size={22} color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.pickerTitle}>Selecione o período</Text>
             <TouchableOpacity onPress={() => setAnchor(shiftMonth(anchor, 12))}>
-              <Icon name="chevron-forward" size={22} color={COLORS.text} />
+              <Icon name="chevron-forward" size={22} color={colors.text} />
             </TouchableOpacity>
           </View>
           <ScrollView style={{ maxHeight: 360 }}>
@@ -309,10 +339,10 @@ function PeriodPickerModal({ visible, currentKey, onClose, onSelect }: PickerPro
                 onPress={() => onSelect(m)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.pickerText, currentKey === m && { color: COLORS.primary }]}>
+                <Text style={[styles.pickerText, currentKey === m && { color: colors.primary }]}>
                   {formatPeriod(m)}
                 </Text>
-                {currentKey === m && <Icon name="checkmark" size={18} color={COLORS.primary} />}
+                {currentKey === m && <Icon name="checkmark" size={18} color={colors.primary} />}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -329,54 +359,54 @@ function PeriodPickerModal({ visible, currentKey, onClose, onSelect }: PickerPro
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (colors: any) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: SPACING.lg, paddingBottom: 100 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: SPACING.lg,
   },
-  greeting: { color: COLORS.text, fontSize: 26, fontWeight: '700', letterSpacing: -0.5 },
+  greeting: { color: colors.text, fontSize: 26, fontWeight: '700', letterSpacing: -0.5 },
   periodPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     marginTop: 4,
   },
-  periodText: { color: COLORS.textSecondary, fontSize: 14 },
+  periodText: { color: colors.textSecondary, fontSize: 14 },
   iconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   balanceCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
   },
-  balanceLabel: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '500' },
+  balanceLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '500' },
   balanceValue: { fontSize: 36, fontWeight: '800', marginTop: 4, letterSpacing: -1 },
   balanceRow: {
     flexDirection: 'row',
     marginTop: SPACING.lg,
     paddingTop: SPACING.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.borderSoft,
+    borderTopColor: colors.borderSoft,
     gap: SPACING.lg,
   },
   balanceItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   miniDot: { width: 8, height: 8, borderRadius: 4 },
-  balanceItemLabel: { color: COLORS.textMuted, fontSize: 11, marginBottom: 2 },
-  balanceItemValue: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  balanceItemLabel: { color: colors.textMuted, fontSize: 11, marginBottom: 2 },
+  balanceItemValue: { color: colors.text, fontSize: 14, fontWeight: '600' },
 
   projectionCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.md,
@@ -388,7 +418,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   projectionLabel: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -400,21 +430,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
   },
-  projectionItemLabel: { color: COLORS.textSecondary, fontSize: 13 },
-  projectionItemValue: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  projectionItemLabel: { color: colors.textSecondary, fontSize: 13 },
+  projectionItemValue: { color: colors.text, fontSize: 14, fontWeight: '600' },
   projectionTotal: {
     borderTopWidth: 1,
-    borderTopColor: COLORS.borderSoft,
+    borderTopColor: colors.borderSoft,
     marginTop: SPACING.xs,
     paddingTop: SPACING.sm,
   },
-  projectionTotalLabel: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  projectionTotalLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
   projectionTotalValue: { fontSize: 18, fontWeight: '800' },
 
   alertCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.warningSoft,
+    backgroundColor: colors.warningSoft,
     borderRadius: RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.md,
@@ -424,16 +454,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  alertTitle: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
-  alertText: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
+  alertTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  alertText: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
 
   section: { marginTop: SPACING.lg },
   sectionTitle: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -441,7 +471,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   catCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: RADIUS.md,
     padding: SPACING.md,
   },
@@ -451,27 +481,27 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     gap: SPACING.sm,
   },
-  catRowBorder: { borderTopWidth: 1, borderTopColor: COLORS.borderSoft },
-  catName: { color: COLORS.text, fontSize: 13, fontWeight: '500', minWidth: 80 },
+  catRowBorder: { borderTopWidth: 1, borderTopColor: colors.borderSoft },
+  catName: { color: colors.text, fontSize: 13, fontWeight: '500', minWidth: 80 },
   catBarTrack: {
     flex: 1,
     height: 6,
-    backgroundColor: COLORS.borderSoft,
+    backgroundColor: colors.borderSoft,
     borderRadius: 3,
     marginHorizontal: SPACING.sm,
     overflow: 'hidden',
   },
   catBarFill: { height: 6, borderRadius: 3 },
-  catValue: { color: COLORS.text, fontSize: 13, fontWeight: '600', minWidth: 80, textAlign: 'right' },
+  catValue: { color: colors.text, fontSize: 13, fontWeight: '600', minWidth: 80, textAlign: 'right' },
 
   emptyCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: RADIUS.md,
     padding: SPACING.xl,
     alignItems: 'center',
     gap: SPACING.sm,
   },
-  emptyText: { color: COLORS.textMuted, fontSize: 13 },
+  emptyText: { color: colors.textMuted, fontSize: 13 },
 
   overlay: {
     flex: 1,
@@ -481,7 +511,7 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
   },
   pickerCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     width: '100%',
@@ -494,10 +524,10 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderSoft,
+    borderBottomColor: colors.borderSoft,
     marginBottom: SPACING.sm,
   },
-  pickerTitle: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  pickerTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
   pickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -506,14 +536,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     borderRadius: RADIUS.sm,
   },
-  pickerRowActive: { backgroundColor: COLORS.primarySoft },
-  pickerText: { color: COLORS.text, fontSize: 15 },
+  pickerRowActive: { backgroundColor: colors.primarySoft },
+  pickerText: { color: colors.text, fontSize: 15 },
   pickerToday: {
     marginTop: SPACING.sm,
     paddingVertical: SPACING.md,
     alignItems: 'center',
-    backgroundColor: COLORS.cardElevated,
+    backgroundColor: colors.cardElevated,
     borderRadius: RADIUS.md,
   },
-  pickerTodayText: { color: COLORS.primary, fontSize: 14, fontWeight: '600' },
+  pickerTodayText: { color: colors.primary, fontSize: 14, fontWeight: '600' },
 });

@@ -20,11 +20,13 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { useTransactions, useCategories } from '../hooks/useStorage';
+import { useMonthlyIncome } from '../hooks/useMonthlyIncome';
 import { TransactionCard } from '../components/TransactionCard';
 import { CategoryDot } from '../components/CategoryDot';
 import { FABButton } from '../components/FABButton';
 import { Icon } from '../components/Icon';
-import { COLORS, RADIUS, SPACING, Transaction, TransactionType } from '../types';
+import { RADIUS, SPACING, Transaction, TransactionType } from '../types';
+import { useTheme } from '../hooks/useTheme';
 import {
   formatCurrencyInput,
   parseCurrencyInput,
@@ -38,6 +40,9 @@ const FILTER_TYPES: Array<{ key: 'all' | TransactionType; label: string }> = [
 ];
 
 export function LancamentosScreen() {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const { items, add, update, remove } = useTransactions();
   const { items: categories } = useCategories();
 
@@ -121,7 +126,7 @@ export function LancamentosScreen() {
           <View style={styles.divider} />
           {filterCat && (
             <TouchableOpacity style={styles.chip} onPress={() => setFilterCat(null)}>
-              <Icon name="close" size={14} color={COLORS.textSecondary} />
+              <Icon name="close" size={14} color={colors.textSecondary} />
               <Text style={[styles.chipText, { marginLeft: 4 }]}>Limpar</Text>
             </TouchableOpacity>
           )}
@@ -152,7 +157,7 @@ export function LancamentosScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Icon name="document-text-outline" size={48} color={COLORS.textMuted} />
+            <Icon name="document-text-outline" size={48} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>Nenhum lançamento</Text>
             <Text style={styles.emptyText}>Toque em + para adicionar uma receita ou despesa.</Text>
           </View>
@@ -187,10 +192,15 @@ interface ModalProps {
 }
 
 function TransactionModal({ visible, editing, onClose, onSave }: ModalProps) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const { items: categories } = useCategories();
+  const { rendaLiquida } = useMonthlyIncome();
   const [descricao, setDescricao] = useState('');
-  const [tipo, setTipo] = useState<TransactionType>('despesa');
+  const [tipoLocal, setTipoLocal] = useState<'despesa' | 'receita' | 'salario'>('despesa');
   const [valorRaw, setValorRaw] = useState('');
+  const [descontoExtraRaw, setDescontoExtraRaw] = useState('');
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
   const [categoriaId, setCategoriaId] = useState(categories[0]?.id ?? '');
   const [observacao, setObservacao] = useState('');
@@ -200,16 +210,18 @@ function TransactionModal({ visible, editing, onClose, onSave }: ModalProps) {
     if (!visible) return;
     if (editing) {
       setDescricao(editing.descricao);
-      setTipo(editing.tipo);
+      setTipoLocal(editing.tipo);
       setValorRaw(String(Math.round(editing.valor * 100)));
       setData(editing.data);
       setCategoriaId(editing.categoriaId);
       setObservacao(editing.observacao ?? '');
       setComprovanteUri(editing.comprovanteUri);
+      setDescontoExtraRaw('');
     } else {
       setDescricao('');
-      setTipo('despesa');
+      setTipoLocal('despesa');
       setValorRaw('');
+      setDescontoExtraRaw('');
       setData(new Date().toISOString().slice(0, 10));
       setCategoriaId(categories[0]?.id ?? '');
       setObservacao('');
@@ -260,6 +272,23 @@ function TransactionModal({ visible, editing, onClose, onSave }: ModalProps) {
   };
 
   const handleSave = async () => {
+    if (tipoLocal === 'salario') {
+      const valorLiquido = Math.max(0, rendaLiquida - parseCurrencyInput(descontoExtraRaw));
+      if (valorLiquido <= 0) return Alert.alert('Atenção', 'Salário com desconto resulta em valor zero ou negativo.');
+      await onSave({
+        id: editing?.id ?? generateId(),
+        descricao: descricao.trim() || 'Salário',
+        tipo: 'receita',
+        valor: valorLiquido,
+        data,
+        categoriaId: 'cat-salario',
+        observacao: observacao.trim() || undefined,
+        comprovanteUri,
+        criadoEm: editing?.criadoEm ?? new Date().toISOString(),
+      });
+      return;
+    }
+
     if (!descricao.trim()) return Alert.alert('Atenção', 'Informe a descrição.');
     const valor = parseCurrencyInput(valorRaw);
     if (valor <= 0) return Alert.alert('Atenção', 'Informe um valor.');
@@ -268,7 +297,7 @@ function TransactionModal({ visible, editing, onClose, onSave }: ModalProps) {
     await onSave({
       id: editing?.id ?? generateId(),
       descricao: descricao.trim(),
-      tipo,
+      tipo: tipoLocal,
       valor,
       data,
       categoriaId,
@@ -294,75 +323,127 @@ function TransactionModal({ visible, editing, onClose, onSave }: ModalProps) {
         <ScrollView contentContainerStyle={styles.modalBody}>
           <View style={styles.segment}>
             <TouchableOpacity
-              style={[styles.segmentBtn, tipo === 'despesa' && styles.segmentBtnDanger]}
-              onPress={() => setTipo('despesa')}
+              style={[styles.segmentBtn, tipoLocal === 'despesa' && styles.segmentBtnDanger]}
+              onPress={() => setTipoLocal('despesa')}
               activeOpacity={0.7}
             >
               <Icon
                 name="arrow-down-circle"
                 size={16}
-                color={tipo === 'despesa' ? COLORS.danger : COLORS.textSecondary}
+                color={tipoLocal === 'despesa' ? colors.danger : colors.textSecondary}
               />
-              <Text style={[styles.segmentText, tipo === 'despesa' && { color: COLORS.danger }]}>
+              <Text style={[styles.segmentText, tipoLocal === 'despesa' && { color: colors.danger }]}>
                 Despesa
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.segmentBtn, tipo === 'receita' && styles.segmentBtnPrimary]}
-              onPress={() => setTipo('receita')}
+              style={[styles.segmentBtn, tipoLocal === 'receita' && styles.segmentBtnPrimary]}
+              onPress={() => setTipoLocal('receita')}
               activeOpacity={0.7}
             >
               <Icon
                 name="arrow-up-circle"
                 size={16}
-                color={tipo === 'receita' ? COLORS.primary : COLORS.textSecondary}
+                color={tipoLocal === 'receita' ? colors.primary : colors.textSecondary}
               />
-              <Text style={[styles.segmentText, tipo === 'receita' && { color: COLORS.primary }]}>
+              <Text style={[styles.segmentText, tipoLocal === 'receita' && { color: colors.primary }]}>
                 Receita
               </Text>
             </TouchableOpacity>
+            {!editing && (
+              <TouchableOpacity
+                style={[styles.segmentBtn, tipoLocal === 'salario' && styles.segmentBtnSalary]}
+                onPress={() => setTipoLocal('salario')}
+                activeOpacity={0.7}
+              >
+                <Icon
+                  name="wallet"
+                  size={16}
+                  color={tipoLocal === 'salario' ? colors.primaryDim : colors.textSecondary}
+                />
+                <Text style={[styles.segmentText, tipoLocal === 'salario' && { color: colors.primaryDim }]}>
+                  Salário
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          <Text style={styles.label}>Valor</Text>
-          <TextInput
-            value={formatCurrencyInput(valorRaw)}
-            onChangeText={setValorRaw}
-            keyboardType="numeric"
-            style={[styles.input, styles.inputBig]}
-          />
+          {tipoLocal === 'salario' ? (
+            <>
+              <View style={styles.salaryCard}>
+                <Text style={styles.salaryLabel}>Renda líquida cadastrada</Text>
+                <Text style={styles.salaryValue}>
+                  {rendaLiquida.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </Text>
+              </View>
 
-          <Text style={styles.label}>Descrição</Text>
-          <TextInput
-            value={descricao}
-            onChangeText={setDescricao}
-            placeholder="Ex: Mercado, Aluguel"
-            placeholderTextColor={COLORS.textMuted}
-            style={styles.input}
-          />
+              <Text style={styles.label}>Desconto extra este mês (opcional)</Text>
+              <TextInput
+                value={formatCurrencyInput(descontoExtraRaw)}
+                onChangeText={setDescontoExtraRaw}
+                keyboardType="numeric"
+                placeholder="R$ 0,00"
+                placeholderTextColor={colors.textMuted}
+                style={[styles.input, styles.inputBig]}
+              />
+
+              <Text style={styles.label}>Descrição (opcional)</Text>
+              <TextInput
+                value={descricao}
+                onChangeText={setDescricao}
+                placeholder="Salário mês atual"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+              />
+            </>
+          ) : (
+            <>
+              <Text style={styles.label}>Valor</Text>
+              <TextInput
+                value={formatCurrencyInput(valorRaw)}
+                onChangeText={setValorRaw}
+                keyboardType="numeric"
+                style={[styles.input, styles.inputBig]}
+              />
+
+              <Text style={styles.label}>Descrição</Text>
+              <TextInput
+                value={descricao}
+                onChangeText={setDescricao}
+                placeholder="Ex: Mercado, Aluguel"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+              />
+            </>
+          )}
 
           <Text style={styles.label}>Data</Text>
           <TextInput
             value={data}
             onChangeText={setData}
             placeholder="2026-04-28"
-            placeholderTextColor={COLORS.textMuted}
+            placeholderTextColor={colors.textMuted}
             style={styles.input}
           />
 
-          <Text style={styles.label}>Categoria</Text>
-          <View style={styles.catGrid}>
-            {categories.map((c) => (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.catChip, categoriaId === c.id && styles.catChipActive]}
-                onPress={() => setCategoriaId(c.id)}
-                activeOpacity={0.7}
-              >
-                <CategoryDot color={c.cor} size={10} />
-                <Text style={styles.catChipText}>{c.nome}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {tipoLocal !== 'salario' && (
+            <>
+              <Text style={styles.label}>Categoria</Text>
+              <View style={styles.catGrid}>
+                {categories.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.catChip, categoriaId === c.id && styles.catChipActive]}
+                    onPress={() => setCategoriaId(c.id)}
+                    activeOpacity={0.7}
+                  >
+                    <CategoryDot color={c.cor} size={10} />
+                    <Text style={styles.catChipText}>{c.nome}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
 
           <Text style={styles.label}>Observação</Text>
           <TextInput
@@ -371,21 +452,21 @@ function TransactionModal({ visible, editing, onClose, onSave }: ModalProps) {
             multiline
             style={[styles.input, { minHeight: 60, textAlignVertical: 'top' }]}
             placeholder="Notas adicionais (opcional)"
-            placeholderTextColor={COLORS.textMuted}
+            placeholderTextColor={colors.textMuted}
           />
 
           <Text style={styles.label}>Comprovante</Text>
           <View style={styles.attachRow}>
             <TouchableOpacity style={styles.attachBtn} onPress={pickFromCamera} activeOpacity={0.7}>
-              <Icon name="camera-outline" size={18} color={COLORS.text} />
+              <Icon name="camera-outline" size={18} color={colors.text} />
               <Text style={styles.attachText}>Câmera</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachBtn} onPress={pickFromGallery} activeOpacity={0.7}>
-              <Icon name="image-outline" size={18} color={COLORS.text} />
+              <Icon name="image-outline" size={18} color={colors.text} />
               <Text style={styles.attachText}>Galeria</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachBtn} onPress={pickPdf} activeOpacity={0.7}>
-              <Icon name="document-outline" size={18} color={COLORS.text} />
+              <Icon name="document-outline" size={18} color={colors.text} />
               <Text style={styles.attachText}>PDF</Text>
             </TouchableOpacity>
           </View>
@@ -393,15 +474,15 @@ function TransactionModal({ visible, editing, onClose, onSave }: ModalProps) {
             <View style={styles.previewBox}>
               {comprovanteUri.endsWith('.pdf') ? (
                 <View style={styles.pdfBadge}>
-                  <Icon name="document-text" size={32} color={COLORS.primary} />
+                  <Icon name="document-text" size={32} color={colors.primary} />
                   <Text style={styles.previewText}>PDF anexado</Text>
                 </View>
               ) : (
                 <Image source={{ uri: comprovanteUri }} style={styles.previewImg} />
               )}
               <TouchableOpacity onPress={() => setComprovanteUri(undefined)} style={styles.removeBtn}>
-                <Icon name="trash-outline" size={16} color={COLORS.danger} />
-                <Text style={[styles.attachText, { color: COLORS.danger, marginLeft: 6 }]}>Remover</Text>
+                <Icon name="trash-outline" size={16} color={colors.danger} />
+                <Text style={[styles.attachText, { color: colors.danger, marginLeft: 6 }]}>Remover</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -411,27 +492,27 @@ function TransactionModal({ visible, editing, onClose, onSave }: ModalProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (colors: any) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm, paddingBottom: SPACING.md },
-  title: { color: COLORS.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
-  subtitle: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  title: { color: colors.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
+  subtitle: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
   filtersWrap: { paddingBottom: SPACING.sm },
   filters: { paddingHorizontal: SPACING.md, gap: SPACING.sm, alignItems: 'center' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
     borderRadius: RADIUS.full,
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  chipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  chipText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '500' },
-  chipTextActive: { color: COLORS.primary, fontWeight: '600' },
-  divider: { width: 1, height: 18, backgroundColor: COLORS.border, marginHorizontal: SPACING.xs },
+  chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  chipText: { color: colors.textSecondary, fontSize: 13, fontWeight: '500' },
+  chipTextActive: { color: colors.primary, fontWeight: '600' },
+  divider: { width: 1, height: 18, backgroundColor: colors.border, marginHorizontal: SPACING.xs },
   list: { padding: SPACING.lg, paddingBottom: 100 },
   emptyState: {
     alignItems: 'center',
@@ -439,19 +520,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
   },
   emptyTitle: {
-    color: COLORS.text,
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
     marginTop: SPACING.md,
   },
   emptyText: {
-    color: COLORS.textMuted,
+    color: colors.textMuted,
     fontSize: 13,
     marginTop: SPACING.xs,
     textAlign: 'center',
   },
 
-  modalSafe: { flex: 1, backgroundColor: COLORS.background },
+  modalSafe: { flex: 1, backgroundColor: colors.background },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -459,14 +540,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderSoft,
+    borderBottomColor: colors.borderSoft,
   },
-  modalTitle: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
-  modalCancel: { color: COLORS.textSecondary, fontSize: 15 },
-  modalSave: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
+  modalTitle: { color: colors.text, fontSize: 16, fontWeight: '600' },
+  modalCancel: { color: colors.textSecondary, fontSize: 15 },
+  modalSave: { color: colors.primary, fontSize: 15, fontWeight: '700' },
   modalBody: { padding: SPACING.lg, paddingBottom: 60 },
   label: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: SPACING.lg,
     marginBottom: SPACING.sm,
@@ -475,8 +556,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   input: {
-    backgroundColor: COLORS.card,
-    color: COLORS.text,
+    backgroundColor: colors.card,
+    color: colors.text,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderRadius: RADIUS.md,
@@ -485,7 +566,7 @@ const styles = StyleSheet.create({
   inputBig: { fontSize: 22, fontWeight: '600', paddingVertical: SPACING.lg },
   segment: {
     flexDirection: 'row',
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: RADIUS.md,
     padding: 4,
     gap: 4,
@@ -499,37 +580,47 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.sm,
     gap: 6,
   },
-  segmentBtnPrimary: { backgroundColor: COLORS.primarySoft },
-  segmentBtnDanger: { backgroundColor: COLORS.dangerSoft },
-  segmentText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 14 },
+  segmentBtnPrimary: { backgroundColor: colors.primarySoft },
+  segmentBtnDanger: { backgroundColor: colors.dangerSoft },
+  segmentBtnSalary: { backgroundColor: 'rgba(0, 179, 143, 0.12)' },
+  segmentText: { color: colors.textSecondary, fontWeight: '600', fontSize: 13 },
+  salaryCard: {
+    backgroundColor: colors.cardElevated,
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.md,
+    alignItems: 'center',
+  },
+  salaryLabel: { color: colors.textSecondary, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 },
+  salaryValue: { color: colors.primaryDim, fontSize: 24, fontWeight: '800', marginTop: 4 },
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   catChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.full,
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  catChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  catChipText: { color: COLORS.text, fontSize: 13, fontWeight: '500' },
+  catChipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  catChipText: { color: colors.text, fontSize: 13, fontWeight: '500' },
   attachRow: { flexDirection: 'row', gap: SPACING.sm },
   attachBtn: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     paddingVertical: SPACING.md,
     borderRadius: RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
-  attachText: { color: COLORS.text, fontSize: 13, fontWeight: '500' },
+  attachText: { color: colors.text, fontSize: 13, fontWeight: '500' },
   previewBox: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     padding: SPACING.md,
     borderRadius: RADIUS.md,
     marginTop: SPACING.sm,
@@ -538,6 +629,6 @@ const styles = StyleSheet.create({
   },
   pdfBadge: { alignItems: 'center', gap: 6 },
   previewImg: { width: 140, height: 140, borderRadius: RADIUS.md },
-  previewText: { color: COLORS.text, fontSize: 13 },
+  previewText: { color: colors.text, fontSize: 13 },
   removeBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
 });

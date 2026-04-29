@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Icon, IconName } from './Icon';
-import { COLORS } from '../types';
+import { useTheme } from '../hooks/useTheme';
 
 interface FABButtonProps {
   onPress: () => void;
@@ -10,6 +10,9 @@ interface FABButtonProps {
 }
 
 export function FABButton({ onPress, icon = 'add' }: FABButtonProps) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const handle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     onPress();
@@ -22,7 +25,7 @@ export function FABButton({ onPress, icon = 'add' }: FABButtonProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
@@ -30,7 +33,7 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

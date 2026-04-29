@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, AppStateStatus, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { AppState, AppStateStatus, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
@@ -11,64 +11,49 @@ import { AuthContext, AuthState } from './src/hooks/useAuth';
 import { auth as authService } from './src/services/auth';
 import { storage } from './src/services/storage';
 import { notifications } from './src/services/notifications';
-import { COLORS, SESSION_TIMEOUT_MS } from './src/types';
+import { SESSION_TIMEOUT_MS } from './src/types';
+import { ThemeProvider } from './src/contexts/ThemeContext';
+import { useTheme } from './src/hooks/useTheme';
 
 import { LockScreen } from './src/screens/LockScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { LancamentosScreen } from './src/screens/LancamentosScreen';
-import { FixosScreen } from './src/screens/FixosScreen';
+import { GastosScreen } from './src/screens/GastosScreen';
 import { ParcelasScreen } from './src/screens/ParcelasScreen';
 import { MetasScreen } from './src/screens/MetasScreen';
 import { MaisScreen } from './src/screens/MaisScreen';
 
 const Tab = createBottomTabNavigator();
 
-const navTheme = {
-  ...DefaultTheme,
-  dark: true,
-  colors: {
-    ...DefaultTheme.colors,
-    background: COLORS.background,
-    card: COLORS.card,
-    text: COLORS.text,
-    border: COLORS.border,
-    primary: COLORS.primary,
-    notification: COLORS.primary,
-  },
-};
-
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
 interface TabIconProps {
   name: IoniconName;
   focused: boolean;
+  color: string;
 }
 
-function TabIcon({ name, focused }: TabIconProps) {
-  return (
-    <Ionicons
-      name={name}
-      size={22}
-      color={focused ? COLORS.primary : COLORS.textMuted}
-    />
-  );
+function TabIcon({ name, color }: TabIconProps) {
+  return <Ionicons name={name} size={22} color={color} />;
 }
 
 function MainTabs() {
+  const { colors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.card,
-          borderTopColor: COLORS.borderSoft,
+          backgroundColor: colors.card,
+          borderTopColor: colors.borderSoft,
           borderTopWidth: 0.5,
           height: 78,
           paddingBottom: 18,
           paddingTop: 10,
         },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textMuted,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600', marginTop: 2 },
       }}
     >
@@ -76,8 +61,8 @@ function MainTabs() {
         name="Dashboard"
         component={DashboardScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name={focused ? 'home' : 'home-outline'} focused={focused} />
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon name={focused ? 'home' : 'home-outline'} focused={focused} color={color} />
           ),
           tabBarLabel: 'Início',
         }}
@@ -86,28 +71,28 @@ function MainTabs() {
         name="Lancamentos"
         component={LancamentosScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name={focused ? 'swap-vertical' : 'swap-vertical-outline'} focused={focused} />
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon name={focused ? 'swap-vertical' : 'swap-vertical-outline'} focused={focused} color={color} />
           ),
           tabBarLabel: 'Lançamentos',
         }}
       />
       <Tab.Screen
-        name="Fixos"
-        component={FixosScreen}
+        name="Gastos"
+        component={GastosScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name={focused ? 'calendar' : 'calendar-outline'} focused={focused} />
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon name={focused ? 'calendar' : 'calendar-outline'} focused={focused} color={color} />
           ),
-          tabBarLabel: 'Fixos',
+          tabBarLabel: 'Gastos',
         }}
       />
       <Tab.Screen
         name="Parcelas"
         component={ParcelasScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name={focused ? 'card' : 'card-outline'} focused={focused} />
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon name={focused ? 'card' : 'card-outline'} focused={focused} color={color} />
           ),
           tabBarLabel: 'Parcelas',
         }}
@@ -116,8 +101,8 @@ function MainTabs() {
         name="Metas"
         component={MetasScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name={focused ? 'trophy' : 'trophy-outline'} focused={focused} />
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon name={focused ? 'trophy' : 'trophy-outline'} focused={focused} color={color} />
           ),
           tabBarLabel: 'Metas',
         }}
@@ -126,10 +111,10 @@ function MainTabs() {
         name="Mais"
         component={MaisScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused, color }) => (
             <TabIcon
               name={focused ? 'ellipsis-horizontal-circle' : 'ellipsis-horizontal-circle-outline'}
-              focused={focused}
+              focused={focused} color={color}
             />
           ),
           tabBarLabel: 'Mais',
@@ -139,7 +124,7 @@ function MainTabs() {
   );
 }
 
-function AuthProvider({ children }: { children: React.ReactNode }) {
+function AuthProviderWrap({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>('loading');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometria');
@@ -240,11 +225,39 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
 function RootContent() {
   const ctx = React.useContext(AuthContext);
+  const { colors, theme } = useTheme();
+
+  const navTheme = useMemo(() => ({
+    ...DefaultTheme,
+    dark: theme === 'dark' || (theme === 'auto' && colors.background === '#0a0a0b'),
+    colors: {
+      ...DefaultTheme.colors,
+      background: colors.background,
+      card: colors.card,
+      text: colors.text,
+      border: colors.border,
+      primary: colors.primary,
+      notification: colors.primary,
+    },
+  }), [colors, theme]);
+
+  const styles = useMemo(() => StyleSheet.create({
+    loading: {
+      flex: 1, backgroundColor: colors.background,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    loadingLogo: {
+      width: 80, height: 80, borderRadius: 40,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center', justifyContent: 'center',
+    },
+  }), [colors]);
+
   if (!ctx || ctx.state === 'loading') {
     return (
       <View style={styles.loading}>
         <View style={styles.loadingLogo}>
-          <Ionicons name="wallet" size={36} color={COLORS.primary} />
+          <Ionicons name="wallet" size={36} color={colors.primary} />
         </View>
       </View>
     );
@@ -265,23 +278,13 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StatusBar style="light" />
-        <AuthProvider>
-          <RootContent />
-        </AuthProvider>
+        <ThemeProvider>
+          <StatusBar style="auto" />
+          <AuthProviderWrap>
+            <RootContent />
+          </AuthProviderWrap>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  loading: {
-    flex: 1, backgroundColor: COLORS.background,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  loadingLogo: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: COLORS.primarySoft,
-    alignItems: 'center', justifyContent: 'center',
-  },
-});

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Finanças",
-    "slug": "financaspessoais",
+    "name": "Flow Finanças",
+    "slug": "flow-financas",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -79,6 +79,12 @@
             "deploymentTarget": "15.1"
           }
         }
+      ],
+      [
+        "expo-alternate-app-icons",
+        [
+          "./assets/icons/icon-light.png"
+        ]
       ]
     ],
     "runtimeVersion": {

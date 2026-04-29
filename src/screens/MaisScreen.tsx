@@ -23,7 +23,8 @@ import { MoneyText } from '../components/MoneyText';
 import { HistoricoModal } from './HistoricoModal';
 import { storage } from '../services/storage';
 import { notifications } from '../services/notifications';
-import { COLORS, Category, RADIUS, SPACING, STORAGE_KEYS } from '../types';
+import { Category, RADIUS, SPACING, STORAGE_KEYS, AppTheme, AppIcon } from '../types';
+import { useTheme } from '../hooks/useTheme';
 import {
   formatCurrency,
   formatCurrencyInput,
@@ -39,7 +40,7 @@ const PALETTE = [
 
 type ModalType =
   | null
-  | 'calc' | 'categorias' | 'seguranca' | 'backup' | 'sobre' | 'historico' | 'changePin' | 'renda';
+  | 'calc' | 'categorias' | 'seguranca' | 'backup' | 'sobre' | 'historico' | 'changePin' | 'renda' | 'aparencia';
 
 interface MenuItem {
   id: ModalType;
@@ -50,9 +51,20 @@ interface MenuItem {
 }
 
 export function MaisScreen() {
+  const { colors, theme } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const auth = useAuth();
   const [modal, setModal] = useState<ModalType>(null);
-  const [rendaMensal] = useMonthlyIncome();
+  const { rendaLiquida: rendaMensal } = useMonthlyIncome();
+
+  const getThemeText = () => {
+    switch (theme) {
+      case 'dark': return 'Escuro';
+      case 'light': return 'Claro';
+      default: return 'Automático do Sistema';
+    }
+  };
 
   const sections: Array<{ title: string; items: MenuItem[] }> = [
     {
@@ -71,6 +83,7 @@ export function MaisScreen() {
           title: 'Renda mensal',
           subtitle: rendaMensal > 0 ? formatCurrency(rendaMensal) : 'Ainda não definida',
         },
+        { id: 'aparencia', icon: 'color-palette-outline', title: 'Aparência', subtitle: getThemeText() },
         { id: 'categorias', icon: 'pricetag-outline', title: 'Categorias', subtitle: 'Personalize cores e nomes' },
         { id: 'seguranca', icon: 'shield-checkmark-outline', title: 'Segurança', subtitle: 'PIN, biometria, dados' },
         { id: 'backup', icon: 'cloud-download-outline', title: 'Backup', subtitle: 'Exportar e importar dados' },
@@ -103,13 +116,13 @@ export function MaisScreen() {
                   activeOpacity={0.6}
                 >
                   <View style={styles.rowIconWrap}>
-                    <Icon name={item.icon} size={20} color={item.iconColor ?? COLORS.primary} />
+                    <Icon name={item.icon} size={20} color={item.iconColor ?? colors.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowTitle}>{item.title}</Text>
                     {item.subtitle ? <Text style={styles.rowSubtitle}>{item.subtitle}</Text> : null}
                   </View>
-                  <Icon name="chevron-forward" size={18} color={COLORS.textMuted} />
+                  <Icon name="chevron-forward" size={18} color={colors.textMuted} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -117,13 +130,14 @@ export function MaisScreen() {
         ))}
 
         <TouchableOpacity style={styles.lockBtn} onPress={() => auth.lock()} activeOpacity={0.7}>
-          <Icon name="lock-closed" size={16} color={COLORS.warning} />
+          <Icon name="lock-closed" size={16} color={colors.warning} />
           <Text style={styles.lockBtnText}>Bloquear agora</Text>
         </TouchableOpacity>
       </ScrollView>
 
       <HistoricoModal visible={modal === 'historico'} onClose={() => setModal(null)} />
       <RendaModal visible={modal === 'renda'} onClose={() => setModal(null)} />
+      <AparenciaModal visible={modal === 'aparencia'} onClose={() => setModal(null)} />
       <CalculatorModal visible={modal === 'calc'} onClose={() => setModal(null)} />
       <CategoriasModal visible={modal === 'categorias'} onClose={() => setModal(null)} />
       <SegurancaModal
@@ -138,20 +152,115 @@ export function MaisScreen() {
   );
 }
 
+function AparenciaModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors, theme, icon, setTheme, setIcon } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe} edges={['top']}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={onClose}><Text style={styles.cancel}>Fechar</Text></TouchableOpacity>
+          <Text style={styles.modalTitle}>Aparência</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <ScrollView contentContainerStyle={styles.modalBody}>
+          <Text style={styles.label}>Tema do Aplicativo</Text>
+          <View style={styles.sectionCard}>
+            <TouchableOpacity style={styles.row} onPress={() => setTheme('auto')} activeOpacity={0.7}>
+              <View style={styles.rowIconWrap}><Icon name="color-wand-outline" size={20} color={colors.primary} /></View>
+              <Text style={styles.rowTitle}>Automático do Sistema</Text>
+              {theme === 'auto' && <Icon name="checkmark" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+            <View style={styles.rowBorder} />
+            <TouchableOpacity style={styles.row} onPress={() => setTheme('dark')} activeOpacity={0.7}>
+              <View style={styles.rowIconWrap}><Icon name="moon-outline" size={20} color={colors.primary} /></View>
+              <Text style={styles.rowTitle}>Sempre Escuro</Text>
+              {theme === 'dark' && <Icon name="checkmark" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+            <View style={styles.rowBorder} />
+            <TouchableOpacity style={styles.row} onPress={() => setTheme('light')} activeOpacity={0.7}>
+              <View style={styles.rowIconWrap}><Icon name="sunny-outline" size={20} color={colors.primary} /></View>
+              <Text style={styles.rowTitle}>Sempre Claro</Text>
+              {theme === 'light' && <Icon name="checkmark" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[styles.label, { marginTop: SPACING.xl }]}>Ícone do Aplicativo</Text>
+          <View style={styles.sectionCard}>
+            <TouchableOpacity style={styles.row} onPress={() => setIcon('default')} activeOpacity={0.7}>
+              <View style={[styles.rowIconWrap, { backgroundColor: '#0a0a0b' }]}><Icon name="wallet" size={20} color="#00d4aa" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>Padrão (Escuro)</Text>
+              </View>
+              {icon === 'default' && <Icon name="checkmark" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+            <View style={styles.rowBorder} />
+            <TouchableOpacity style={styles.row} onPress={() => setIcon('light')} activeOpacity={0.7}>
+              <View style={[styles.rowIconWrap, { backgroundColor: '#ffffff' }]}><Icon name="wallet" size={20} color="#00d4aa" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>Variante Clara</Text>
+              </View>
+              {icon === 'light' && <Icon name="checkmark" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+          </View>
+
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
 function RendaModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const [renda, setRenda] = useMonthlyIncome();
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
+  const { config, rendaLiquida, setBase, setAjuste } = useMonthlyIncome();
   const [valorRaw, setValorRaw] = useState('');
+  const [ajusteRaw, setAjusteRaw] = useState('');
+  const [ajusteTipo, setAjusteTipo] = useState<'soma' | 'subtracao'>('subtracao');
+  const [ajusteEhPct, setAjusteEhPct] = useState(false);
 
   React.useEffect(() => {
-    if (visible) setValorRaw(renda > 0 ? String(Math.round(renda * 100)) : '');
-  }, [visible, renda]);
+    if (visible) {
+      setValorRaw(config.base > 0 ? String(Math.round(config.base * 100)) : '');
+      if (config.ajusteEhPorcentagem) {
+        setAjusteRaw(config.ajusteValor ? String(config.ajusteValor) : '');
+      } else {
+        setAjusteRaw(config.ajusteValor > 0 ? String(Math.round(config.ajusteValor * 100)) : '');
+      }
+      setAjusteTipo(config.ajusteTipo);
+      setAjusteEhPct(config.ajusteEhPorcentagem);
+    }
+  }, [visible, config]);
 
   const handle = async () => {
     const valor = parseCurrencyInput(valorRaw);
     if (valor < 0) return;
-    await setRenda(valor);
+    await setBase(valor);
+    let ajusteNum = 0;
+    if (ajusteEhPct) {
+      ajusteNum = Number(ajusteRaw.replace(',', '.')) || 0;
+      if (ajusteNum < 0 || ajusteNum > 100) {
+        ajusteNum = Math.max(0, Math.min(100, ajusteNum));
+      }
+    } else {
+      ajusteNum = parseCurrencyInput(ajusteRaw);
+    }
+    await setAjuste(ajusteNum, ajusteTipo, ajusteEhPct);
     onClose();
   };
+
+  const previewBase = parseCurrencyInput(valorRaw);
+  const previewAjusteNum = ajusteEhPct
+    ? Number(ajusteRaw.replace(',', '.')) || 0
+    : parseCurrencyInput(ajusteRaw);
+  const previewDelta = ajusteEhPct
+    ? (previewBase * previewAjusteNum) / 100
+    : previewAjusteNum;
+  const previewLiquida = ajusteTipo === 'soma'
+    ? previewBase + previewDelta
+    : Math.max(0, previewBase - previewDelta);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -165,17 +274,16 @@ function RendaModal({ visible, onClose }: { visible: boolean; onClose: () => voi
         </View>
         <ScrollView contentContainerStyle={styles.modalBody}>
           <View style={styles.infoCard}>
-            <Icon name="wallet" size={20} color={COLORS.primary} />
+            <Icon name="wallet" size={20} color={colors.primary} />
             <View style={{ flex: 1 }}>
               <Text style={styles.infoTitle}>O que é a renda mensal?</Text>
               <Text style={styles.infoText}>
-                Seu salário ou rendimento fixo. Não vira lançamento — é só uma referência pra projetar
-                quanto vai sobrar depois das contas fixas e despesas do mês.
+                Seu salário base. Use o ajuste pra adicionar bônus fixo (+R$) ou descontar impostos/INSS (-%). A renda líquida é o valor que entra na projeção do Dashboard.
               </Text>
             </View>
           </View>
 
-          <Text style={styles.label}>Valor</Text>
+          <Text style={styles.label}>Salário base</Text>
           <TextInput
             value={formatCurrencyInput(valorRaw)}
             onChangeText={setValorRaw}
@@ -183,6 +291,80 @@ function RendaModal({ visible, onClose }: { visible: boolean; onClose: () => voi
             style={[styles.input, styles.inputBig]}
             autoFocus
           />
+
+          <Text style={styles.label}>Ajuste (opcional)</Text>
+          <View style={styles.segRow}>
+            <TouchableOpacity
+              style={[styles.segBtn, ajusteTipo === 'soma' && styles.segBtnActiveSum]}
+              onPress={() => setAjusteTipo('soma')}
+              activeOpacity={0.7}
+            >
+              <Icon
+                name="add"
+                size={14}
+                color={ajusteTipo === 'soma' ? '#0a0a0b' : colors.textSecondary}
+              />
+              <Text style={[styles.segText, ajusteTipo === 'soma' && { color: '#0a0a0b' }]}>
+                Somar
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.segBtn, ajusteTipo === 'subtracao' && styles.segBtnActiveSub]}
+              onPress={() => setAjusteTipo('subtracao')}
+              activeOpacity={0.7}
+            >
+              <Icon
+                name="remove"
+                size={14}
+                color={ajusteTipo === 'subtracao' ? '#0a0a0b' : colors.textSecondary}
+              />
+              <Text style={[styles.segText, ajusteTipo === 'subtracao' && { color: '#0a0a0b' }]}>
+                Subtrair
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.segRow}>
+            <TouchableOpacity
+              style={[styles.segBtn, !ajusteEhPct && styles.segBtnActive]}
+              onPress={() => setAjusteEhPct(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.segText, !ajusteEhPct && { color: colors.text }]}>R$ valor fixo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.segBtn, ajusteEhPct && styles.segBtnActive]}
+              onPress={() => setAjusteEhPct(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.segText, ajusteEhPct && { color: colors.text }]}>% porcentagem</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TextInput
+            value={ajusteEhPct ? ajusteRaw : formatCurrencyInput(ajusteRaw)}
+            onChangeText={setAjusteRaw}
+            keyboardType="numeric"
+            placeholder={ajusteEhPct ? 'Ex: 10 para 10%' : 'R$ 0,00'}
+            placeholderTextColor={colors.textMuted}
+            style={[styles.input, { marginTop: SPACING.md }]}
+          />
+
+          <View style={styles.previewCard}>
+            <Text style={styles.previewLabel}>Renda líquida (entra na projeção)</Text>
+            <Text style={styles.previewValue}>
+              {previewLiquida.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </Text>
+            {previewAjusteNum > 0 && (
+              <Text style={styles.previewBreakdown}>
+                {previewBase.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}{' '}
+                {ajusteTipo === 'soma' ? '+' : '−'}{' '}
+                {ajusteEhPct
+                  ? `${previewAjusteNum}% (${previewDelta.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})`
+                  : previewDelta.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </Text>
+            )}
+          </View>
 
           <Text style={styles.help}>
             Deixe zerado se preferir registrar tudo apenas como lançamentos reais.
@@ -194,6 +376,9 @@ function RendaModal({ visible, onClose }: { visible: boolean; onClose: () => voi
 }
 
 function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const [valorRaw, setValorRaw] = useState('');
   const [taxa, setTaxa] = useState('1');
   const [meses, setMeses] = useState('12');
@@ -225,10 +410,10 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
 
           <View style={styles.resultBlock}>
             <View style={styles.resultHeader}>
-              <Icon name="trending-up-outline" size={18} color={COLORS.primary} />
+              <Icon name="trending-up-outline" size={18} color={colors.primary} />
               <Text style={styles.resultLabel}>Juros compostos</Text>
             </View>
-            <Text style={[styles.resultValue, { color: COLORS.primary }]}>
+            <Text style={[styles.resultValue, { color: colors.primary }]}>
               {formatCurrency(composto)}
             </Text>
             <Text style={styles.resultMeta}>
@@ -238,7 +423,7 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
 
           <View style={styles.resultBlock}>
             <View style={styles.resultHeader}>
-              <Icon name="trending-up-outline" size={18} color={COLORS.textSecondary} />
+              <Icon name="trending-up-outline" size={18} color={colors.textSecondary} />
               <Text style={styles.resultLabel}>Juros simples</Text>
             </View>
             <Text style={styles.resultValue}>{formatCurrency(simples)}</Text>
@@ -257,6 +442,9 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
 }
 
 function CategoriasModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const { items, save } = useCategories();
   const [edit, setEdit] = useState<Category | null>(null);
   const [nome, setNome] = useState('');
@@ -300,7 +488,7 @@ function CategoriasModal({ visible, onClose }: { visible: boolean; onClose: () =
           <TouchableOpacity onPress={onClose}><Text style={styles.cancel}>Fechar</Text></TouchableOpacity>
           <Text style={styles.modalTitle}>Categorias</Text>
           <TouchableOpacity onPress={startNew}>
-            <Icon name="add" size={22} color={COLORS.primary} />
+            <Icon name="add" size={22} color={colors.primary} />
           </TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={styles.modalBody}>
@@ -338,7 +526,7 @@ function CategoriasModal({ visible, onClose }: { visible: boolean; onClose: () =
               >
                 <CategoryDot color={c.cor} size={14} />
                 <Text style={styles.catRowText}>{c.nome}</Text>
-                <Icon name="chevron-forward" size={16} color={COLORS.textMuted} />
+                <Icon name="chevron-forward" size={16} color={colors.textMuted} />
               </TouchableOpacity>
             ))
           )}
@@ -354,6 +542,9 @@ function CategoriasModal({ visible, onClose }: { visible: boolean; onClose: () =
 function SegurancaModal({
   visible, onClose, onChangePin,
 }: { visible: boolean; onClose: () => void; onChangePin: () => void }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const auth = useAuth();
   const [bio, setBio] = useState(auth.biometricEnabled);
 
@@ -410,7 +601,7 @@ function SegurancaModal({
         </View>
         <ScrollView contentContainerStyle={styles.modalBody}>
           <View style={styles.infoCard}>
-            <Icon name="shield-checkmark" size={20} color={COLORS.primary} />
+            <Icon name="shield-checkmark" size={20} color={colors.primary} />
             <View style={{ flex: 1 }}>
               <Text style={styles.infoTitle}>Como protegemos seus dados</Text>
               <Text style={styles.infoText}>
@@ -423,15 +614,15 @@ function SegurancaModal({
           <View style={styles.sectionCard}>
             <TouchableOpacity style={styles.row} onPress={onChangePin} activeOpacity={0.6}>
               <View style={styles.rowIconWrap}>
-                <Icon name="keypad-outline" size={20} color={COLORS.primary} />
+                <Icon name="keypad-outline" size={20} color={colors.primary} />
               </View>
               <Text style={styles.rowTitle}>Alterar PIN</Text>
-              <Icon name="chevron-forward" size={18} color={COLORS.textMuted} />
+              <Icon name="chevron-forward" size={18} color={colors.textMuted} />
             </TouchableOpacity>
 
             <View style={[styles.row, styles.rowBorder]}>
               <View style={styles.rowIconWrap}>
-                <Icon name="finger-print-outline" size={20} color={COLORS.primary} />
+                <Icon name="finger-print-outline" size={20} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>{auth.biometricLabel}</Text>
@@ -441,13 +632,13 @@ function SegurancaModal({
               </View>
               <Switch
                 value={bio} onValueChange={toggleBio} disabled={!auth.biometricAvailable}
-                trackColor={{ true: COLORS.primary, false: COLORS.border }}
+                trackColor={{ true: colors.primary, false: colors.border }}
               />
             </View>
           </View>
 
           <TouchableOpacity style={styles.dangerBtn} onPress={wipeAll} activeOpacity={0.7}>
-            <Icon name="trash-outline" size={18} color={COLORS.danger} />
+            <Icon name="trash-outline" size={18} color={colors.danger} />
             <Text style={styles.dangerBtnText}>Apagar todos os dados</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -457,6 +648,9 @@ function SegurancaModal({
 }
 
 function ChangePinModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const auth = useAuth();
   const [step, setStep] = useState<'current' | 'new' | 'confirm'>('current');
   const [newPin, setNewPin] = useState('');
@@ -510,6 +704,9 @@ function ChangePinModal({ visible, onClose }: { visible: boolean; onClose: () =>
 }
 
 function BackupModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const [status, setStatus] = useState<string>('');
 
   const exportar = async () => {
@@ -567,7 +764,7 @@ function BackupModal({ visible, onClose }: { visible: boolean; onClose: () => vo
         </View>
         <ScrollView contentContainerStyle={styles.modalBody}>
           <View style={styles.infoCard}>
-            <Icon name="cloud-download-outline" size={20} color={COLORS.primary} />
+            <Icon name="cloud-download-outline" size={20} color={colors.primary} />
             <View style={{ flex: 1 }}>
               <Text style={styles.infoTitle}>O que é o backup?</Text>
               <Text style={styles.infoText}>
@@ -578,7 +775,7 @@ function BackupModal({ visible, onClose }: { visible: boolean; onClose: () => vo
           </View>
 
           <View style={styles.infoCard}>
-            <Icon name="warning-outline" size={20} color={COLORS.warning} />
+            <Icon name="warning-outline" size={20} color={colors.warning} />
             <View style={{ flex: 1 }}>
               <Text style={styles.infoTitle}>Cuidados</Text>
               <Text style={styles.infoText}>
@@ -594,7 +791,7 @@ function BackupModal({ visible, onClose }: { visible: boolean; onClose: () => vo
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.actionBtn, styles.actionMuted, { marginTop: SPACING.sm }]} onPress={importar}>
-            <Icon name="arrow-down-circle-outline" size={18} color={COLORS.text} />
+            <Icon name="arrow-down-circle-outline" size={18} color={colors.text} />
             <Text style={[styles.actionText, { marginLeft: 6 }]}>Importar backup</Text>
           </TouchableOpacity>
 
@@ -606,6 +803,9 @@ function BackupModal({ visible, onClose }: { visible: boolean; onClose: () => vo
 }
 
 function SobreModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={styles.modalSafe} edges={['top']}>
@@ -616,10 +816,10 @@ function SobreModal({ visible, onClose }: { visible: boolean; onClose: () => voi
         </View>
         <ScrollView contentContainerStyle={styles.modalBody}>
           <View style={styles.aboutLogo}>
-            <Icon name="wallet" size={40} color={COLORS.primary} />
+            <Icon name="wallet" size={40} color={colors.primary} />
           </View>
-          <Text style={styles.aboutName}>Finanças</Text>
-          <Text style={styles.aboutVersion}>Versão 1.0.0</Text>
+          <Text style={styles.aboutName}>Flow Finanças</Text>
+          <Text style={styles.aboutVersion}>Versão 1.1.0</Text>
           <Text style={styles.aboutText}>
             App offline para controle financeiro pessoal. Seus dados nunca saem do dispositivo.
           </Text>
@@ -632,113 +832,132 @@ function SobreModal({ visible, onClose }: { visible: boolean; onClose: () => voi
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (colors: any) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: SPACING.lg, paddingBottom: 80 },
   header: { marginBottom: SPACING.lg },
-  title: { color: COLORS.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
+  title: { color: colors.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
 
   section: { marginBottom: SPACING.lg },
   sectionTitle: {
-    color: COLORS.textSecondary, fontSize: 11, fontWeight: '700',
+    color: colors.textSecondary, fontSize: 11, fontWeight: '700',
     textTransform: 'uppercase', letterSpacing: 1,
     marginBottom: SPACING.sm, marginLeft: SPACING.xs,
   },
-  sectionCard: { backgroundColor: COLORS.card, borderRadius: RADIUS.md, overflow: 'hidden' },
+  sectionCard: { backgroundColor: colors.card, borderRadius: RADIUS.md, overflow: 'hidden' },
 
   row: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: SPACING.md, paddingHorizontal: SPACING.md,
     gap: SPACING.md,
   },
-  rowBorder: { borderTopWidth: 1, borderTopColor: COLORS.borderSoft },
+  rowBorder: { borderTopWidth: 1, borderTopColor: colors.borderSoft },
   rowIconWrap: {
     width: 36, height: 36, borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.cardElevated,
+    backgroundColor: colors.cardElevated,
     alignItems: 'center', justifyContent: 'center',
   },
-  rowTitle: { color: COLORS.text, fontSize: 15, fontWeight: '500', flex: 1 },
-  rowSubtitle: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
+  rowTitle: { color: colors.text, fontSize: 15, fontWeight: '500', flex: 1 },
+  rowSubtitle: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
 
   lockBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6,
-    backgroundColor: COLORS.warningSoft,
+    backgroundColor: colors.warningSoft,
     paddingVertical: SPACING.md, borderRadius: RADIUS.md,
     marginTop: SPACING.sm,
   },
-  lockBtnText: { color: COLORS.warning, fontSize: 14, fontWeight: '600' },
+  lockBtnText: { color: colors.warning, fontSize: 14, fontWeight: '600' },
 
-  modalSafe: { flex: 1, backgroundColor: COLORS.background },
+  modalSafe: { flex: 1, backgroundColor: colors.background },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.borderSoft,
+    borderBottomWidth: 1, borderBottomColor: colors.borderSoft,
   },
-  modalTitle: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
-  cancel: { color: COLORS.primary, fontSize: 15, fontWeight: '600', minWidth: 60 },
+  modalTitle: { color: colors.text, fontSize: 16, fontWeight: '600' },
+  cancel: { color: colors.primary, fontSize: 15, fontWeight: '600', minWidth: 60 },
   modalBody: { padding: SPACING.lg, paddingBottom: 60 },
   label: {
-    color: COLORS.textSecondary, fontSize: 12,
+    color: colors.textSecondary, fontSize: 12,
     marginTop: SPACING.lg, marginBottom: SPACING.sm,
     textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: '600',
   },
   input: {
-    backgroundColor: COLORS.card, color: COLORS.text,
+    backgroundColor: colors.card, color: colors.text,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
     borderRadius: RADIUS.md, fontSize: 15,
   },
-  inputBig: { fontSize: 22, fontWeight: '600', paddingVertical: SPACING.lg },
-  help: { color: COLORS.textMuted, fontSize: 12, textAlign: 'center', marginTop: SPACING.md },
-
-  resultBlock: { backgroundColor: COLORS.card, padding: SPACING.md, borderRadius: RADIUS.md, marginTop: SPACING.md },
-  resultHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  resultLabel: { color: COLORS.textSecondary, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: '600' },
-  resultValue: { color: COLORS.text, fontSize: 24, fontWeight: '700', marginTop: SPACING.xs },
-  resultMeta: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
-
-  catRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.card, paddingVertical: SPACING.md, paddingHorizontal: SPACING.md,
-    borderRadius: RADIUS.md, marginBottom: SPACING.xs, gap: SPACING.md,
+  inputBig: { fontSize: 24, fontWeight: '700', paddingVertical: SPACING.lg },
+  
+  infoCard: {
+    flexDirection: 'row', backgroundColor: colors.card,
+    padding: SPACING.md, borderRadius: RADIUS.md,
+    marginBottom: SPACING.md, gap: SPACING.md,
   },
-  catRowText: { color: COLORS.text, fontSize: 15, flex: 1 },
+  infoTitle: { color: colors.text, fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  infoText: { color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
 
-  editBlock: { backgroundColor: COLORS.card, padding: SPACING.lg, borderRadius: RADIUS.md },
-  palette: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: 4 },
-  swatch: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: 'transparent' },
-  swatchActive: { borderColor: COLORS.text },
+  previewCard: {
+    backgroundColor: colors.primarySoft, padding: SPACING.md,
+    borderRadius: RADIUS.md, marginTop: SPACING.lg,
+  },
+  previewLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
+  previewValue: { color: colors.text, fontSize: 28, fontWeight: '800', marginTop: 4, letterSpacing: -0.5 },
+  previewBreakdown: { color: colors.textSecondary, fontSize: 13, marginTop: 6 },
+
+  segRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
+  segBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: colors.card, paddingVertical: SPACING.sm, borderRadius: RADIUS.md,
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  segBtnActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  segBtnActiveSum: { backgroundColor: colors.primary },
+  segBtnActiveSub: { backgroundColor: colors.warning },
+  segText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+
+  resultBlock: {
+    backgroundColor: colors.card, padding: SPACING.md, borderRadius: RADIUS.md,
+    marginTop: SPACING.lg,
+  },
+  resultHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: SPACING.sm },
+  resultLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  resultValue: { color: colors.text, fontSize: 24, fontWeight: '700' },
+  resultMeta: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
+
+  editBlock: { backgroundColor: colors.card, padding: SPACING.md, borderRadius: RADIUS.lg },
+  palette: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: SPACING.sm },
+  swatch: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: 'transparent' },
+  swatchActive: { borderColor: colors.text },
+  catRow: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card,
+    padding: SPACING.md, borderRadius: RADIUS.md, marginBottom: SPACING.sm, gap: SPACING.md,
+  },
+  catRowText: { color: colors.text, fontSize: 15, fontWeight: '500', flex: 1 },
 
   actionBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: SPACING.md, borderRadius: RADIUS.md, flex: 1,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: SPACING.md, borderRadius: RADIUS.md,
   },
-  actionPrimary: { backgroundColor: COLORS.primary },
-  actionMuted: { backgroundColor: COLORS.card },
-  actionText: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
-
-  infoCard: {
-    flexDirection: 'row', gap: SPACING.md,
-    backgroundColor: COLORS.card, padding: SPACING.md,
-    borderRadius: RADIUS.md, marginBottom: SPACING.md,
-  },
-  infoTitle: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
-  infoText: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  actionPrimary: { backgroundColor: colors.primary },
+  actionMuted: { backgroundColor: colors.cardElevated },
+  actionText: { color: colors.text, fontSize: 15, fontWeight: '600' },
 
   dangerBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, marginTop: SPACING.lg,
-    backgroundColor: COLORS.dangerSoft, paddingVertical: SPACING.md, borderRadius: RADIUS.md,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: SPACING.xl, paddingVertical: SPACING.md,
   },
-  dangerBtnText: { color: COLORS.danger, fontSize: 14, fontWeight: '600' },
+  dangerBtnText: { color: colors.danger, fontSize: 14, fontWeight: '600' },
+
+  help: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: SPACING.xl },
 
   aboutLogo: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: COLORS.primarySoft,
-    alignSelf: 'center', alignItems: 'center', justifyContent: 'center',
-    marginVertical: SPACING.lg,
+    width: 80, height: 80, borderRadius: 20,
+    backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'center', marginTop: SPACING.xl, marginBottom: SPACING.md,
   },
-  aboutName: { color: COLORS.text, fontSize: 22, fontWeight: '700', textAlign: 'center' },
-  aboutVersion: { color: COLORS.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: SPACING.lg },
-  aboutText: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20, marginBottom: SPACING.md, textAlign: 'center' },
+  aboutName: { color: colors.text, fontSize: 24, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5 },
+  aboutVersion: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginTop: 4, marginBottom: SPACING.xl },
+  aboutText: { color: colors.text, fontSize: 15, textAlign: 'center', lineHeight: 22, paddingHorizontal: SPACING.lg, marginBottom: SPACING.md },
 });

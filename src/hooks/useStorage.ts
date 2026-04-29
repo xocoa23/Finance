@@ -3,6 +3,7 @@ import { storage, subscribe } from '../services/storage';
 import {
   Transaction,
   FixedExpense,
+  ExpectedExpense,
   Installment,
   Goal,
   Category,
@@ -70,6 +71,38 @@ export function useFixedExpenses() {
   const remove = useCallback(async (id: string) => {
     const list = await storage.getFixedExpenses();
     await storage.setFixedExpenses(list.filter((f) => f.id !== id));
+  }, []);
+
+  return { items, loading, reload, add, update, remove };
+}
+
+export function useExpectedExpenses() {
+  const [items, setItems] = useState<ExpectedExpense[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const reload = useCallback(async () => {
+    setItems(await storage.getExpectedExpenses());
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    reload();
+    return subscribe(STORAGE_KEYS.EXPECTED_EXPENSES, reload);
+  }, [reload]);
+
+  const add = useCallback(async (item: ExpectedExpense) => {
+    const list = await storage.getExpectedExpenses();
+    await storage.setExpectedExpenses([...list, item]);
+  }, []);
+
+  const update = useCallback(async (item: ExpectedExpense) => {
+    const list = await storage.getExpectedExpenses();
+    await storage.setExpectedExpenses(list.map((e) => (e.id === item.id ? item : e)));
+  }, []);
+
+  const remove = useCallback(async (id: string) => {
+    const list = await storage.getExpectedExpenses();
+    await storage.setExpectedExpenses(list.filter((e) => e.id !== id));
   }, []);
 
   return { items, loading, reload, add, update, remove };

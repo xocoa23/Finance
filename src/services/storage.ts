@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Transaction,
   FixedExpense,
+  ExpectedExpense,
   Installment,
   Goal,
   Category,
@@ -79,6 +80,14 @@ export const storage = {
     notify(STORAGE_KEYS.FIXED_EXPENSES);
   },
 
+  async getExpectedExpenses(): Promise<ExpectedExpense[]> {
+    return getJson<ExpectedExpense[]>(STORAGE_KEYS.EXPECTED_EXPENSES, []);
+  },
+  async setExpectedExpenses(list: ExpectedExpense[]): Promise<void> {
+    await setJson(STORAGE_KEYS.EXPECTED_EXPENSES, list);
+    notify(STORAGE_KEYS.EXPECTED_EXPENSES);
+  },
+
   async getInstallments(): Promise<Installment[]> {
     return getJson<Installment[]>(STORAGE_KEYS.INSTALLMENTS, []);
   },
@@ -129,17 +138,18 @@ export const storage = {
   },
 
   async exportAll() {
-    const [transactions, fixedExpenses, installments, goals, categories] = await Promise.all([
+    const [transactions, fixedExpenses, expectedExpenses, installments, goals, categories] = await Promise.all([
       this.getTransactions(),
       this.getFixedExpenses(),
+      this.getExpectedExpenses(),
       this.getInstallments(),
       this.getGoals(),
       this.getCategories(),
     ]);
     return {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
-      data: { transactions, fixedExpenses, installments, goals, categories },
+      data: { transactions, fixedExpenses, expectedExpenses, installments, goals, categories },
     };
   },
 
@@ -148,6 +158,7 @@ export const storage = {
     const d = payload.data;
     if (Array.isArray(d.transactions)) await this.setTransactions(d.transactions);
     if (Array.isArray(d.fixedExpenses)) await this.setFixedExpenses(d.fixedExpenses);
+    if (Array.isArray(d.expectedExpenses)) await this.setExpectedExpenses(d.expectedExpenses);
     if (Array.isArray(d.installments)) await this.setInstallments(d.installments);
     if (Array.isArray(d.goals)) await this.setGoals(d.goals);
     if (Array.isArray(d.categories)) await this.setCategories(d.categories);

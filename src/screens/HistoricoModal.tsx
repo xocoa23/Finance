@@ -12,7 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-chart-kit';
 import { useTransactions, useCategories } from '../hooks/useStorage';
 import { MoneyText } from '../components/MoneyText';
-import { COLORS, Transaction } from '../types';
+import { Transaction } from '../types';
+import { useTheme } from '../hooks/useTheme';
 import {
   formatPercentDelta,
   formatPeriodLabel,
@@ -61,6 +62,9 @@ function aggregate(transactions: Transaction[], gran: PeriodGranularity): Period
 }
 
 export function HistoricoModal({ visible, onClose }: HistoricoModalProps) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const { items: transactions } = useTransactions();
   const { items: categories } = useCategories();
   const [gran, setGran] = useState<PeriodGranularity>('month');
@@ -80,12 +84,12 @@ export function HistoricoModal({ visible, onClose }: HistoricoModalProps) {
     datasets: [
       {
         data: periods.length > 0 ? periods.map((p) => p.receitas) : [0],
-        color: () => COLORS.primary,
+        color: () => colors.primary,
         strokeWidth: 2,
       },
       {
         data: periods.length > 0 ? periods.map((p) => p.despesas) : [0],
-        color: () => COLORS.danger,
+        color: () => colors.danger,
         strokeWidth: 2,
       },
     ],
@@ -101,7 +105,7 @@ export function HistoricoModal({ visible, onClose }: HistoricoModalProps) {
         return {
           id: catId,
           nome: cat?.nome ?? 'Outros',
-          cor: cat?.cor ?? COLORS.textMuted,
+          cor: cat?.cor ?? colors.textMuted,
           total,
           delta: formatPercentDelta(total, totalAnterior),
         };
@@ -147,7 +151,7 @@ export function HistoricoModal({ visible, onClose }: HistoricoModalProps) {
                     <Text style={styles.metricLabel}>Receitas</Text>
                     <MoneyText
                       value={current?.receitas ?? 0}
-                      style={[styles.metricValue, { color: COLORS.primary }]}
+                      style={[styles.metricValue, { color: colors.primary }]}
                     />
                     {previous && (
                       <Text style={styles.delta}>
@@ -159,7 +163,7 @@ export function HistoricoModal({ visible, onClose }: HistoricoModalProps) {
                     <Text style={styles.metricLabel}>Despesas</Text>
                     <MoneyText
                       value={current?.despesas ?? 0}
-                      style={[styles.metricValue, { color: COLORS.danger }]}
+                      style={[styles.metricValue, { color: colors.danger }]}
                     />
                     {previous && (
                       <Text style={styles.delta}>
@@ -174,7 +178,7 @@ export function HistoricoModal({ visible, onClose }: HistoricoModalProps) {
                     value={current?.saldo ?? 0}
                     style={[
                       styles.saldoValue,
-                      { color: (current?.saldo ?? 0) >= 0 ? COLORS.primary : COLORS.danger },
+                      { color: (current?.saldo ?? 0) >= 0 ? colors.primary : colors.danger },
                     ]}
                   />
                 </View>
@@ -188,13 +192,13 @@ export function HistoricoModal({ visible, onClose }: HistoricoModalProps) {
                   height={220}
                   yAxisLabel="R$"
                   chartConfig={{
-                    backgroundColor: COLORS.card,
-                    backgroundGradientFrom: COLORS.card,
-                    backgroundGradientTo: COLORS.card,
+                    backgroundColor: colors.card,
+                    backgroundGradientFrom: colors.card,
+                    backgroundGradientTo: colors.card,
                     decimalPlaces: 0,
                     color: (op = 1) => `rgba(0, 212, 170, ${op})`,
-                    labelColor: () => COLORS.textSecondary,
-                    propsForBackgroundLines: { stroke: COLORS.border },
+                    labelColor: () => colors.textSecondary,
+                    propsForBackgroundLines: { stroke: colors.border },
                     propsForDots: { r: '4' },
                   }}
                   bezier
@@ -228,18 +232,18 @@ export function HistoricoModal({ visible, onClose }: HistoricoModalProps) {
                       <MoneyText
                         value={p.receitas}
                         prefix="+"
-                        style={[styles.histValor, { color: COLORS.primary }]}
+                        style={[styles.histValor, { color: colors.primary }]}
                       />
                       <MoneyText
                         value={p.despesas}
                         prefix="−"
-                        style={[styles.histValor, { color: COLORS.danger }]}
+                        style={[styles.histValor, { color: colors.danger }]}
                       />
                       <MoneyText
                         value={p.saldo}
                         style={[
                           styles.histSaldo,
-                          { color: p.saldo >= 0 ? COLORS.primary : COLORS.danger },
+                          { color: p.saldo >= 0 ? colors.primary : colors.danger },
                         ]}
                       />
                     </View>
@@ -254,8 +258,8 @@ export function HistoricoModal({ visible, onClose }: HistoricoModalProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (colors: any) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -263,10 +267,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
-  title: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
-  cancel: { color: COLORS.primary, fontSize: 15, fontWeight: '600', minWidth: 60 },
+  title: { color: colors.text, fontSize: 16, fontWeight: '600' },
+  cancel: { color: colors.primary, fontSize: 15, fontWeight: '600', minWidth: 60 },
   tabs: {
     flexDirection: 'row',
     paddingHorizontal: 12,
@@ -276,42 +280,42 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     paddingVertical: 8,
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: 10,
     alignItems: 'center',
   },
-  tabActive: { backgroundColor: COLORS.primary },
-  tabText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
+  tabActive: { backgroundColor: colors.primary },
+  tabText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
   tabTextActive: { color: '#0f0f0f' },
   body: { padding: 16, paddingBottom: 60 },
   summaryCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     padding: 16,
     borderRadius: 14,
     marginBottom: 12,
   },
-  summaryLabel: { color: COLORS.textSecondary, fontSize: 12, marginBottom: 12 },
+  summaryLabel: { color: colors.textSecondary, fontSize: 12, marginBottom: 12 },
   summaryRow: { flexDirection: 'row', gap: 16 },
   summaryCol: { flex: 1 },
-  metricLabel: { color: COLORS.textSecondary, fontSize: 12 },
+  metricLabel: { color: colors.textSecondary, fontSize: 12 },
   metricValue: { fontSize: 18, fontWeight: '700', marginTop: 2 },
   saldoValue: { fontSize: 26, fontWeight: '800', marginTop: 2 },
-  delta: { color: COLORS.textMuted, fontSize: 11, marginTop: 4 },
+  delta: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
   chartCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: 14,
     padding: 12,
     marginBottom: 12,
   },
   section: { marginTop: 8, marginBottom: 16 },
   sectionTitle: {
-    color: COLORS.text,
+    color: colors.text,
     fontSize: 15,
     fontWeight: '600',
     marginBottom: 10,
   },
   empty: {
-    color: COLORS.textMuted,
+    color: colors.textMuted,
     fontSize: 13,
     textAlign: 'center',
     paddingVertical: 24,
@@ -321,27 +325,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: 10,
     marginBottom: 6,
     gap: 10,
   },
   catDot: { width: 10, height: 10, borderRadius: 5 },
-  catName: { color: COLORS.text, fontSize: 14 },
-  catValor: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  catName: { color: colors.text, fontSize: 14 },
+  catValor: { color: colors.text, fontSize: 14, fontWeight: '600' },
   catDelta: {
-    color: COLORS.textMuted,
+    color: colors.textMuted,
     fontSize: 11,
     minWidth: 50,
     textAlign: 'right',
   },
   histRow: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     padding: 12,
     borderRadius: 10,
     marginBottom: 6,
   },
-  histLabel: { color: COLORS.text, fontSize: 14, fontWeight: '600', marginBottom: 6 },
+  histLabel: { color: colors.text, fontSize: 14, fontWeight: '600', marginBottom: 6 },
   histVals: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   histValor: { fontSize: 13 },
   histSaldo: { fontSize: 14, fontWeight: '700' },

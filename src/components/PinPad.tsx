@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { COLORS } from '../types';
+import { useTheme } from '../hooks/useTheme';
 
 interface PinPadProps {
   title: string;
@@ -14,6 +14,9 @@ interface PinPadProps {
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
 
 export function PinPad({ title, subtitle, onComplete, errorMessage, resetSignal }: PinPadProps) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const [pin, setPin] = useState('');
 
   useEffect(() => {
@@ -77,19 +80,19 @@ export function PinPad({ title, subtitle, onComplete, errorMessage, resetSignal 
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   wrapper: {
     alignItems: 'center',
     width: '100%',
   },
   title: {
-    color: COLORS.text,
+    color: colors.text,
     fontSize: 22,
     fontWeight: '600',
     marginBottom: 8,
   },
   subtitle: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 14,
     marginBottom: 24,
   },
@@ -103,18 +106,18 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: 2,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     backgroundColor: 'transparent',
   },
   dotFilled: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   dotError: {
-    borderColor: COLORS.danger,
+    borderColor: colors.danger,
   },
   error: {
-    color: COLORS.danger,
+    color: colors.danger,
     fontSize: 13,
     height: 18,
     marginBottom: 12,
@@ -133,13 +136,13 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     margin: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
   keyText: {
-    color: COLORS.text,
+    color: colors.text,
     fontSize: 28,
     fontWeight: '500',
   },
