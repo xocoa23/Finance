@@ -1,0 +1,84 @@
+name: Build iOS IPA (unsigned)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Cache CocoaPods specs repo
+        uses: actions/cache@v4
+        with:
+          path: ~/.cocoapods/repos
+          key: ${{ runner.os }}-cocoapods-specs-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cocoapods-specs-
+
+      - name: Expo prebuild (iOS, clean)
+        run: npx expo prebuild --platform ios --no-install --clean
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install
+
+      - name: Discover workspace and scheme
+        id: discover
+        run: |
+          cd ios
+          WORKSPACE=$(ls -d *.xcworkspace 2>/dev/null | head -1)
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json | python3 -c "import sys, json; print(json.load(sys.stdin)['workspace']['schemes'][0])")
+          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "Workspace: $WORKSPACE | Scheme: $SCHEME"
+
+      - name: Archive (unsigned)
+        run: |
+          cd ios
+          xcodebuild archive \
+            -workspace "${{ steps.discover.outputs.workspace }}" \
+            -scheme "${{ steps.discover.outputs.scheme }}" \
+            -configuration Release \
+            -archivePath "$PWD/build/App.xcarchive" \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            ONLY_ACTIVE_ARCH=NO
+
+      - name: Package IPA
+        run: |
+          cd ios
+          mkdir -p Payload
+          APP_PATH=$(ls -d build/App.xcarchive/Products/Applications/*.app | head -1)
+          cp -R "$APP_PATH" Payload/
+          IPA_NAME="FinancasPessoais-$(date -u +%Y%m%d-%H%M%S).ipa"
+          zip -r "$IPA_NAME" Payload
+          echo "IPA_NAME=$IPA_NAME" >> "$GITHUB_ENV"
+          ls -la "$IPA_NAME"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FinancasPessoais-ios-ipa
+          path: ios/${{ env.IPA_NAME }}
+          if-no-files-found: error
+          retention-days: 30

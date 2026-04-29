@@ -75,21 +75,34 @@ FinancasPessoais/
 
 ---
 
-## 4. ⚠️ Dependências FALTANTES no `package.json`
+## 4. Dependências adicionadas em 28/04/2026
 
-O código importa pacotes que não estão declarados. **Esses imports vão quebrar em runtime** se você só rodar `npm install`. Adicione antes de iniciar o app:
+Inicialmente o `package.json` não declarava 3 pacotes que o código já importava. **Foram instaladas via `npx expo install`** (que escolhe versão compatível com SDK 54):
 
-```bash
-npx expo install expo-notifications expo-device expo-build-properties
+| Pacote | Versão | Onde é usado |
+|---|---|---|
+| `expo-notifications` | ~0.32.17 | `src/services/notifications.ts` — lembretes de contas fixas |
+| `expo-device` | ~8.0.10 | `src/services/notifications.ts` — detecta dispositivo físico |
+| `expo-build-properties` | ~1.0.10 | `app.json` plugin — define iOS deployment target 15.1 |
+
+> Se em outra máquina o `npm install` deixar deps faltando, rode:
+> `npx expo install expo-notifications expo-device expo-build-properties`
+
+### 4.1. Migração `expo-file-system` para API legacy
+
+SDK 54 reescreveu `expo-file-system` com nova API (`File`, `Directory`, `Paths`). O código original usa a API antiga (`documentDirectory`, `EncodingType`, `writeAsStringAsync`, `copyAsync`, `makeDirectoryAsync`). **Fix aplicado**: trocado o import path em 2 arquivos para usar a API legacy preservada pela Expo:
+
+- `src/screens/LancamentosScreen.tsx`
+- `src/screens/MaisScreen.tsx`
+
+```ts
+// antes
+import * as FileSystem from 'expo-file-system';
+// depois
+import * as FileSystem from 'expo-file-system/legacy';
 ```
 
-| Pacote | Onde é usado | Por quê |
-|---|---|---|
-| `expo-notifications` | `src/services/notifications.ts` | Lembretes de contas fixas (3 dias antes do vencimento) |
-| `expo-device` | `src/services/notifications.ts` | Detectar se está em dispositivo físico (notificações não rodam em simulador iOS) |
-| `expo-build-properties` | `app.json` (plugin) | Define `ios.deploymentTarget: 15.1` no EAS Build |
-
-> Use **`npx expo install`** (não `npm install`) — ele escolhe a versão compatível com o Expo SDK 54.
+> A API legacy é estável e suportada, mas eventualmente sairá. Migração para a nova API (ver §9 TODOs) fica como dívida técnica.
 
 ---
 
@@ -213,6 +226,7 @@ Antes do primeiro build, preencha `extra.eas.projectId` em `app.json` (ele será
 - [ ] Avaliar se o esquema de backup JSON cobre todos os dados (transações, fixos, parcelas, metas, settings).
 
 ### Baixa prioridade / dívida técnica
+- [ ] **Migrar `expo-file-system` para a nova API** (atualmente usando `/legacy`, ver §4.1). Trocar `documentDirectory` por `Paths.document.uri`, `writeAsStringAsync` por `new File(uri).write(...)`, etc. Refs: https://docs.expo.dev/versions/latest/sdk/filesystem/
 - [ ] Atualizar pacotes deprecados detectados pelo npm: `rimraf@3`, `inflight@1`, `glob@7` (vêm como deps transitivas — esperar atualização do Expo).
 - [ ] Considerar realocar `npm-cache` para E: se faltar espaço em C: novamente: `npm config set cache E:\npm-cache`.
 - [ ] Adicionar testes (não há suite hoje).
