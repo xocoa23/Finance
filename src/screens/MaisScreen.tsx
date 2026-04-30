@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -188,18 +189,33 @@ function AparenciaModal({ visible, onClose }: { visible: boolean; onClose: () =>
 
           <Text style={[styles.label, { marginTop: SPACING.xl }]}>Ícone do Aplicativo</Text>
           <View style={styles.sectionCard}>
-            <TouchableOpacity style={styles.row} onPress={() => setIcon('default')} activeOpacity={0.7}>
-              <View style={[styles.rowIconWrap, { backgroundColor: '#0a0a0b' }]}><Icon name="wallet" size={20} color="#00d4aa" /></View>
+            <TouchableOpacity style={styles.row} onPress={() => setIcon('auto')} activeOpacity={0.7}>
+              <View style={styles.rowIconWrap}><Icon name="color-wand-outline" size={20} color={colors.primary} /></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Padrão (Escuro)</Text>
+                <Text style={styles.rowTitle}>Automático</Text>
+                <Text style={styles.rowSubtitle}>Segue o tema do app</Text>
+              </View>
+              {icon === 'auto' && <Icon name="checkmark" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+            <View style={styles.rowBorder} />
+            <TouchableOpacity style={styles.row} onPress={() => setIcon('default')} activeOpacity={0.7}>
+              <Image
+                source={require('../../assets/icon.png')}
+                style={{ width: 36, height: 36, borderRadius: 8 }}
+              />
+              <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+                <Text style={styles.rowTitle}>Escuro</Text>
               </View>
               {icon === 'default' && <Icon name="checkmark" size={20} color={colors.primary} />}
             </TouchableOpacity>
             <View style={styles.rowBorder} />
             <TouchableOpacity style={styles.row} onPress={() => setIcon('light')} activeOpacity={0.7}>
-              <View style={[styles.rowIconWrap, { backgroundColor: '#ffffff' }]}><Icon name="wallet" size={20} color="#00d4aa" /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Variante Clara</Text>
+              <Image
+                source={require('../../assets/icons/icon-light.png')}
+                style={{ width: 36, height: 36, borderRadius: 8 }}
+              />
+              <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+                <Text style={styles.rowTitle}>Claro</Text>
               </View>
               {icon === 'light' && <Icon name="checkmark" size={20} color={colors.primary} />}
             </TouchableOpacity>
@@ -375,19 +391,32 @@ function RendaModal({ visible, onClose }: { visible: boolean; onClose: () => voi
   );
 }
 
+type CalcMode = 'financeiro' | 'normal';
+
 function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = React.useMemo(() => getStyles(colors), [colors]);
+  const calcStyles = React.useMemo(() => getCalcStyles(colors), [colors]);
 
-  const [valorRaw, setValorRaw] = useState('');
-  const [taxa, setTaxa] = useState('1');
-  const [meses, setMeses] = useState('12');
+  const [mode, setMode] = useState<CalcMode>('financeiro');
+  const [history, setHistory] = useState<string[]>([]);
 
-  const principal = parseCurrencyInput(valorRaw);
-  const i = parseFloat(taxa.replace(',', '.')) / 100 || 0;
-  const n = parseInt(meses, 10) || 0;
-  const simples = principal * (1 + i * n);
-  const composto = principal * Math.pow(1 + i, n);
+  React.useEffect(() => {
+    if (!visible) return;
+    storage.getRaw('calc_mode').then((v) => { if (v === 'financeiro' || v === 'normal') setMode(v); });
+    storage.getRaw('calc_history').then((v) => { if (v) { try { setHistory(JSON.parse(v)); } catch {} } });
+  }, [visible]);
+
+  const switchMode = async (m: CalcMode) => {
+    setMode(m);
+    await storage.setRaw('calc_mode', m);
+  };
+
+  const addHistory = async (entry: string) => {
+    const next = [entry, ...history].slice(0, 30);
+    setHistory(next);
+    await storage.setRaw('calc_history', JSON.stringify(next));
+  };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -397,47 +426,289 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
           <Text style={styles.modalTitle}>Calculadora</Text>
           <View style={{ width: 60 }} />
         </View>
-        <ScrollView contentContainerStyle={styles.modalBody}>
-          <Text style={styles.label}>Valor inicial</Text>
-          <TextInput
-            value={formatCurrencyInput(valorRaw)} onChangeText={setValorRaw}
-            keyboardType="numeric" style={[styles.input, styles.inputBig]}
-          />
-          <Text style={styles.label}>Taxa de juros (% ao mês)</Text>
-          <TextInput value={taxa} onChangeText={setTaxa} keyboardType="numeric" style={styles.input} />
-          <Text style={styles.label}>Tempo (meses)</Text>
-          <TextInput value={meses} onChangeText={setMeses} keyboardType="numeric" style={styles.input} />
 
-          <View style={styles.resultBlock}>
-            <View style={styles.resultHeader}>
-              <Icon name="trending-up-outline" size={18} color={colors.primary} />
-              <Text style={styles.resultLabel}>Juros compostos</Text>
-            </View>
-            <Text style={[styles.resultValue, { color: colors.primary }]}>
-              {formatCurrency(composto)}
+        <View style={calcStyles.modeTabs}>
+          <TouchableOpacity
+            style={[calcStyles.modeTab, mode === 'financeiro' && calcStyles.modeTabActive]}
+            onPress={() => switchMode('financeiro')} activeOpacity={0.7}
+          >
+            <Text style={[calcStyles.modeTabText, mode === 'financeiro' && calcStyles.modeTabTextActive]}>
+              Financeira
             </Text>
-            <Text style={styles.resultMeta}>
-              + {formatCurrency(composto - principal)} em juros
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[calcStyles.modeTab, mode === 'normal' && calcStyles.modeTabActive]}
+            onPress={() => switchMode('normal')} activeOpacity={0.7}
+          >
+            <Text style={[calcStyles.modeTabText, mode === 'normal' && calcStyles.modeTabTextActive]}>
+              Normal
             </Text>
-          </View>
+          </TouchableOpacity>
+        </View>
 
-          <View style={styles.resultBlock}>
-            <View style={styles.resultHeader}>
-              <Icon name="trending-up-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.resultLabel}>Juros simples</Text>
-            </View>
-            <Text style={styles.resultValue}>{formatCurrency(simples)}</Text>
-            <Text style={styles.resultMeta}>
-              + {formatCurrency(simples - principal)} em juros
-            </Text>
-          </View>
-
-          <Text style={styles.help}>
-            Composto cresce sobre o saldo acumulado · simples cresce só sobre o valor inicial.
-          </Text>
-        </ScrollView>
+        {mode === 'financeiro'
+          ? <FinancialCalc colors={colors} styles={styles} calcStyles={calcStyles} history={history} addHistory={addHistory} />
+          : <NormalCalc colors={colors} calcStyles={calcStyles} history={history} addHistory={addHistory} />
+        }
       </SafeAreaView>
     </Modal>
+  );
+}
+
+function FinancialCalc({ colors, styles, calcStyles, history, addHistory }: any) {
+  const [valorRaw, setValorRaw] = useState('');
+  const [taxa, setTaxa] = useState('1');
+  const [meses, setMeses] = useState('12');
+  const [showHistory, setShowHistory] = useState(false);
+
+  const principal = parseCurrencyInput(valorRaw);
+  const i = parseFloat(taxa.replace(',', '.')) / 100 || 0;
+  const n = parseInt(meses, 10) || 0;
+  const simples = principal * (1 + i * n);
+  const composto = principal * Math.pow(1 + i, n);
+
+  const handleCalc = () => {
+    if (principal <= 0 || n <= 0) return;
+    const entry = `${formatCurrency(principal)} · ${taxa}%/mês · ${n}m → Composto: ${formatCurrency(composto)} / Simples: ${formatCurrency(simples)}`;
+    addHistory(entry);
+  };
+
+  if (showHistory) {
+    return (
+      <View style={{ flex: 1 }}>
+        <TouchableOpacity style={calcStyles.historyBack} onPress={() => setShowHistory(false)}>
+          <Icon name="chevron-back" size={18} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>Voltar</Text>
+        </TouchableOpacity>
+        <ScrollView contentContainerStyle={{ padding: SPACING.lg }}>
+          {history.length === 0
+            ? <Text style={styles.help}>Nenhum cálculo no histórico.</Text>
+            : history.map((h: string, i: number) => (
+                <View key={i} style={calcStyles.historyItem}>
+                  <Text style={calcStyles.historyText}>{h}</Text>
+                </View>
+              ))
+          }
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.modalBody}>
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: SPACING.sm }}>
+        <TouchableOpacity onPress={() => setShowHistory(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Icon name="time-outline" size={16} color={colors.textSecondary} />
+          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Histórico</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.label}>Valor inicial</Text>
+      <TextInput
+        value={formatCurrencyInput(valorRaw)} onChangeText={setValorRaw}
+        keyboardType="numeric" style={[styles.input, styles.inputBig]}
+      />
+      <Text style={styles.label}>Taxa de juros (% ao mês)</Text>
+      <TextInput value={taxa} onChangeText={setTaxa} keyboardType="numeric" style={styles.input} />
+      <Text style={styles.label}>Tempo (meses)</Text>
+      <TextInput value={meses} onChangeText={setMeses} keyboardType="numeric" style={styles.input} />
+
+      <TouchableOpacity style={calcStyles.calcBtn} onPress={handleCalc} activeOpacity={0.8}>
+        <Text style={calcStyles.calcBtnText}>Calcular e salvar no histórico</Text>
+      </TouchableOpacity>
+
+      <View style={styles.resultBlock}>
+        <View style={styles.resultHeader}>
+          <Icon name="trending-up-outline" size={18} color={colors.primary} />
+          <Text style={styles.resultLabel}>Juros compostos</Text>
+        </View>
+        <Text style={[styles.resultValue, { color: colors.primary }]}>{formatCurrency(composto)}</Text>
+        <Text style={styles.resultMeta}>+ {formatCurrency(composto - principal)} em juros</Text>
+      </View>
+
+      <View style={styles.resultBlock}>
+        <View style={styles.resultHeader}>
+          <Icon name="trending-up-outline" size={18} color={colors.textSecondary} />
+          <Text style={styles.resultLabel}>Juros simples</Text>
+        </View>
+        <Text style={styles.resultValue}>{formatCurrency(simples)}</Text>
+        <Text style={styles.resultMeta}>+ {formatCurrency(simples - principal)} em juros</Text>
+      </View>
+
+      <Text style={styles.help}>Composto cresce sobre o saldo acumulado · simples cresce só sobre o valor inicial.</Text>
+    </ScrollView>
+  );
+}
+
+function NormalCalc({ colors, calcStyles, history, addHistory }: any) {
+  const [display, setDisplay] = useState('0');
+  const [prevValue, setPrevValue] = useState<number | null>(null);
+  const [operator, setOperator] = useState<string | null>(null);
+  const [waitingForOperand, setWaitingForOperand] = useState(false);
+  const [expression, setExpression] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+
+  const inputDigit = (digit: string) => {
+    if (waitingForOperand) {
+      setDisplay(digit === '.' ? '0.' : digit);
+      setWaitingForOperand(false);
+    } else {
+      if (digit === '.' && display.includes('.')) return;
+      setDisplay(display === '0' && digit !== '.' ? digit : display + digit);
+    }
+  };
+
+  const inputOperator = (op: string) => {
+    const current = parseFloat(display);
+    if (prevValue !== null && !waitingForOperand) {
+      const result = calculate(prevValue, current, operator!);
+      setDisplay(String(parseFloat(result.toFixed(10))));
+      setPrevValue(result);
+      setExpression(`${parseFloat(result.toFixed(10))} ${op}`);
+    } else {
+      setPrevValue(current);
+      setExpression(`${current} ${op}`);
+    }
+    setOperator(op);
+    setWaitingForOperand(true);
+  };
+
+  const calculate = (a: number, b: number, op: string): number => {
+    switch (op) {
+      case '+': return a + b;
+      case '−': return a - b;
+      case '×': return a * b;
+      case '÷': return b !== 0 ? a / b : 0;
+      default: return b;
+    }
+  };
+
+  const handleEquals = () => {
+    if (prevValue === null || operator === null) return;
+    const current = parseFloat(display);
+    const result = calculate(prevValue, current, operator);
+    const rounded = parseFloat(result.toFixed(10));
+    const entry = `${expression} ${current} = ${rounded}`;
+    addHistory(entry);
+    setDisplay(String(rounded));
+    setPrevValue(null);
+    setOperator(null);
+    setExpression('');
+    setWaitingForOperand(true);
+  };
+
+  const handleClear = () => {
+    setDisplay('0');
+    setPrevValue(null);
+    setOperator(null);
+    setWaitingForOperand(false);
+    setExpression('');
+  };
+
+  const handleBackspace = () => {
+    if (waitingForOperand) return;
+    const next = display.length > 1 ? display.slice(0, -1) : '0';
+    setDisplay(next);
+  };
+
+  const handleToggleSign = () => {
+    setDisplay(String(parseFloat(display) * -1));
+  };
+
+  const handlePercent = () => {
+    setDisplay(String(parseFloat(display) / 100));
+  };
+
+  const btnColor = (type: 'op' | 'eq' | 'fn' | 'num') => {
+    switch (type) {
+      case 'op': return colors.cardElevated;
+      case 'eq': return colors.primary;
+      case 'fn': return colors.cardElevated;
+      default: return colors.card;
+    }
+  };
+
+  const btnTextColor = (type: 'op' | 'eq' | 'fn' | 'num') => {
+    if (type === 'eq') return '#0a0a0b';
+    if (type === 'op') return colors.primary;
+    return colors.text;
+  };
+
+  const Btn = ({ label, type, onPress, wide }: { label: string; type: 'op' | 'eq' | 'fn' | 'num'; onPress: () => void; wide?: boolean }) => (
+    <TouchableOpacity
+      style={[calcStyles.btn, { backgroundColor: btnColor(type) }, wide && calcStyles.btnWide]}
+      onPress={onPress} activeOpacity={0.7}
+    >
+      <Text style={[calcStyles.btnText, { color: btnTextColor(type) }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+
+  if (showHistory) {
+    return (
+      <View style={{ flex: 1 }}>
+        <TouchableOpacity style={calcStyles.historyBack} onPress={() => setShowHistory(false)}>
+          <Icon name="chevron-back" size={18} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>Voltar</Text>
+        </TouchableOpacity>
+        <ScrollView contentContainerStyle={{ padding: SPACING.lg }}>
+          {history.length === 0
+            ? <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center' }}>Nenhum cálculo no histórico.</Text>
+            : history.map((h: string, i: number) => (
+                <View key={i} style={calcStyles.historyItem}>
+                  <Text style={calcStyles.historyText}>{h}</Text>
+                </View>
+              ))
+          }
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={calcStyles.displayArea}>
+        <TouchableOpacity onPress={() => setShowHistory(true)} style={calcStyles.historyBtn}>
+          <Icon name="time-outline" size={16} color={colors.textSecondary} />
+          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Histórico</Text>
+        </TouchableOpacity>
+        {expression ? <Text style={calcStyles.expression}>{expression}</Text> : null}
+        <Text style={calcStyles.displayText} numberOfLines={1} adjustsFontSizeToFit>
+          {display}
+        </Text>
+      </View>
+      <View style={calcStyles.pad}>
+        <View style={calcStyles.row}>
+          <Btn label="C" type="fn" onPress={handleClear} />
+          <Btn label="+/−" type="fn" onPress={handleToggleSign} />
+          <Btn label="%" type="fn" onPress={handlePercent} />
+          <Btn label="÷" type="op" onPress={() => inputOperator('÷')} />
+        </View>
+        <View style={calcStyles.row}>
+          <Btn label="7" type="num" onPress={() => inputDigit('7')} />
+          <Btn label="8" type="num" onPress={() => inputDigit('8')} />
+          <Btn label="9" type="num" onPress={() => inputDigit('9')} />
+          <Btn label="×" type="op" onPress={() => inputOperator('×')} />
+        </View>
+        <View style={calcStyles.row}>
+          <Btn label="4" type="num" onPress={() => inputDigit('4')} />
+          <Btn label="5" type="num" onPress={() => inputDigit('5')} />
+          <Btn label="6" type="num" onPress={() => inputDigit('6')} />
+          <Btn label="−" type="op" onPress={() => inputOperator('−')} />
+        </View>
+        <View style={calcStyles.row}>
+          <Btn label="1" type="num" onPress={() => inputDigit('1')} />
+          <Btn label="2" type="num" onPress={() => inputDigit('2')} />
+          <Btn label="3" type="num" onPress={() => inputDigit('3')} />
+          <Btn label="+" type="op" onPress={() => inputOperator('+')} />
+        </View>
+        <View style={calcStyles.row}>
+          <Btn label="0" type="num" onPress={() => inputDigit('0')} wide />
+          <Btn label="." type="num" onPress={() => inputDigit('.')} />
+          <Btn label="⌫" type="fn" onPress={handleBackspace} />
+          <Btn label="=" type="eq" onPress={handleEquals} />
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -960,4 +1231,60 @@ const getStyles = (colors: any) => StyleSheet.create({
   aboutName: { color: colors.text, fontSize: 24, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5 },
   aboutVersion: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginTop: 4, marginBottom: SPACING.xl },
   aboutText: { color: colors.text, fontSize: 15, textAlign: 'center', lineHeight: 22, paddingHorizontal: SPACING.lg, marginBottom: SPACING.md },
+});
+
+const getCalcStyles = (colors: any) => StyleSheet.create({
+  modeTabs: {
+    flexDirection: 'row',
+    marginHorizontal: SPACING.lg,
+    marginVertical: SPACING.sm,
+    backgroundColor: colors.card,
+    borderRadius: RADIUS.md,
+    padding: 3,
+  },
+  modeTab: {
+    flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: RADIUS.sm,
+  },
+  modeTabActive: { backgroundColor: colors.cardElevated },
+  modeTabText: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  modeTabTextActive: { color: colors.text },
+
+  calcBtn: {
+    backgroundColor: colors.primary, borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md, alignItems: 'center', marginTop: SPACING.lg,
+  },
+  calcBtnText: { color: '#0a0a0b', fontSize: 14, fontWeight: '700' },
+
+  historyBack: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    padding: SPACING.lg, paddingBottom: SPACING.sm,
+  },
+  historyItem: {
+    backgroundColor: colors.card, borderRadius: RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.sm,
+  },
+  historyText: { color: colors.text, fontSize: 13, lineHeight: 18 },
+
+  displayArea: {
+    paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.sm,
+    alignItems: 'flex-end',
+  },
+  historyBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: SPACING.sm,
+  },
+  expression: {
+    color: colors.textSecondary, fontSize: 16, marginBottom: 4,
+  },
+  displayText: {
+    color: colors.text, fontSize: 52, fontWeight: '200', letterSpacing: -1,
+  },
+
+  pad: { flex: 1, padding: SPACING.sm },
+  row: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.sm },
+  btn: {
+    flex: 1, aspectRatio: 1, borderRadius: RADIUS.full,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  btnWide: { flex: 2, aspectRatio: undefined, paddingVertical: SPACING.md },
+  btnText: { fontSize: 22, fontWeight: '400' },
 });

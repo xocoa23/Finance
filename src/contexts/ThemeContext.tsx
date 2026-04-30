@@ -35,24 +35,35 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     await storage.setSettings({ ...settings, tema: newTheme });
   }, []);
 
-  const setIcon = useCallback(async (newIcon: AppIcon) => {
-    setIconState(newIcon);
-    try {
-      const { setAlternateAppIcon } = await import('expo-alternate-app-icons');
-      if (newIcon === 'default') {
-        await setAlternateAppIcon(null);
-      } else {
-        await setAlternateAppIcon(`icon-${newIcon}`);
-      }
-    } catch (e) {
-      console.log('Alternate icons not supported in Expo Go');
-    }
-    const settings = await storage.getSettings();
-    await storage.setSettings({ ...settings, iconePreferido: newIcon });
-  }, []);
-
   const activeTheme = theme === 'auto' ? (systemColorScheme || 'dark') : theme;
   const colors = activeTheme === 'light' ? lightColors : darkColors;
+
+  const applyAlternateIcon = useCallback(async (iconPref: AppIcon, effectiveTheme: 'dark' | 'light') => {
+    try {
+      const { setAlternateAppIcon } = await import('expo-alternate-app-icons');
+      const resolved = iconPref === 'auto' ? effectiveTheme : (iconPref === 'light' ? 'light' : 'default');
+      if (resolved === 'light') {
+        await setAlternateAppIcon('icon-light');
+      } else {
+        await setAlternateAppIcon(null);
+      }
+    } catch {
+      // Not supported in Expo Go
+    }
+  }, []);
+
+  const setIcon = useCallback(async (newIcon: AppIcon) => {
+    setIconState(newIcon);
+    await applyAlternateIcon(newIcon, activeTheme);
+    const settings = await storage.getSettings();
+    await storage.setSettings({ ...settings, iconePreferido: newIcon });
+  }, [applyAlternateIcon, activeTheme]);
+
+  useEffect(() => {
+    if (icon === 'auto') {
+      applyAlternateIcon('auto', activeTheme);
+    }
+  }, [activeTheme, icon, applyAlternateIcon]);
 
   const value = useMemo(
     () => ({

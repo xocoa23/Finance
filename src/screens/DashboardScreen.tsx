@@ -197,14 +197,6 @@ export function DashboardScreen() {
                 style={[styles.projectionItemValue, { color: colors.danger }]}
               />
             </View>
-            <View style={styles.projectionRow}>
-              <Text style={styles.projectionItemLabel}>Despesas do mês</Text>
-              <MoneyText
-                value={summary.despesas}
-                prefix="− "
-                style={[styles.projectionItemValue, { color: colors.danger }]}
-              />
-            </View>
             {summary.aportesMensais > 0 && (
               <View style={styles.projectionRow}>
                 <Text style={styles.projectionItemLabel}>Aportes em metas</Text>
@@ -215,6 +207,14 @@ export function DashboardScreen() {
                 />
               </View>
             )}
+            <View style={styles.projectionRow}>
+              <Text style={styles.projectionItemLabel}>Despesas do mês</Text>
+              <MoneyText
+                value={summary.despesas}
+                prefix="− "
+                style={[styles.projectionItemValue, { color: colors.danger }]}
+              />
+            </View>
             <View style={[styles.projectionRow, styles.projectionTotal]}>
               <Text style={styles.projectionTotalLabel}>Sobra prevista</Text>
               <MoneyText
