@@ -12,12 +12,15 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useGoals } from '../hooks/useStorage';
 import { ProgressBar } from '../components/ProgressBar';
 import { FABButton } from '../components/FABButton';
+import { DateTimePickerField } from '../components/DateTimePickerField';
 import { Icon } from '../components/Icon';
 import { MoneyText } from '../components/MoneyText';
 import { Goal, RADIUS, SPACING } from '../types';
@@ -261,43 +264,37 @@ function ContributionModal({ target, onClose }: ContribModalProps) {
 
   return (
     <Modal visible={!!target} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.dialog}>
-          <Text style={styles.dialogTitle}>
-            {target?.tipo === 'fixo' ? 'Aporte mensal' : 'Adicionar valor'}
-          </Text>
-          <Text style={styles.dialogSubtitle}>{target?.goal.nome}</Text>
-          <Text style={styles.label}>Valor</Text>
-          <TextInput
-            value={formatCurrencyInput(valorRaw)}
-            onChangeText={setValorRaw}
-            keyboardType="numeric"
-            style={[styles.input, { fontSize: 22, fontWeight: '600' }]}
-            editable={target?.tipo !== 'fixo'}
-            autoFocus={target?.tipo !== 'fixo'}
-          />
-          <Text style={styles.label}>Data</Text>
-          <TextInput
-            value={data}
-            onChangeText={setData}
-            placeholder="AAAA-MM-DD"
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
-            autoCapitalize="none"
-          />
-          <TouchableOpacity onPress={() => setData(todayISO())} style={styles.quickBtn}>
-            <Text style={styles.quickText}>Hoje</Text>
-          </TouchableOpacity>
-          <View style={styles.dialogRow}>
-            <TouchableOpacity style={styles.dialogBtnGhost} onPress={onClose}>
-              <Text style={styles.modalCancel}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.dialogBtnPrimary} onPress={handle}>
-              <Text style={styles.dialogBtnPrimaryText}>Confirmar</Text>
-            </TouchableOpacity>
-          </View>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.overlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.dialog}>
+              <Text style={styles.dialogTitle}>
+                {target?.tipo === 'fixo' ? 'Aporte mensal' : 'Adicionar valor'}
+              </Text>
+              <Text style={styles.dialogSubtitle}>{target?.goal.nome}</Text>
+              <Text style={styles.label}>Valor</Text>
+              <TextInput
+                value={formatCurrencyInput(valorRaw)}
+                onChangeText={setValorRaw}
+                keyboardType="numeric"
+                style={[styles.input, { fontSize: 22, fontWeight: '600' }]}
+                editable={target?.tipo !== 'fixo'}
+                autoFocus={target?.tipo !== 'fixo'}
+              />
+              <Text style={styles.label}>Data</Text>
+              <DateTimePickerField value={data} onChange={setData} allowPast={true} />
+              <View style={styles.dialogRow}>
+                <TouchableOpacity style={styles.dialogBtnGhost} onPress={onClose}>
+                  <Text style={styles.modalCancel}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.dialogBtnPrimary} onPress={handle}>
+                  <Text style={styles.dialogBtnPrimaryText}>Confirmar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }
@@ -372,7 +369,7 @@ function GoalModal({ visible, editing, onClose, onSave }: ModalProps) {
             <Text style={styles.modalSave}>Salvar</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={styles.modalBody}>
+        <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>Nome</Text>
           <TextInput
             value={nome}

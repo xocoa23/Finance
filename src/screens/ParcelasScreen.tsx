@@ -13,10 +13,14 @@ import {
   TouchableOpacity,
   View,
   Switch,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useInstallments, useCategories } from '../hooks/useStorage';
+import { CategorySelectorField } from '../components/CategorySelectorField';
+import { DateTimePickerField } from '../components/DateTimePickerField';
 import { ProgressBar } from '../components/ProgressBar';
 import { FABButton } from '../components/FABButton';
 import { Icon } from '../components/Icon';
@@ -298,44 +302,36 @@ function PaymentDateModal({ target, onClose }: PaymentModalProps) {
 
   return (
     <Modal visible={!!target} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.dialog}>
-          <Text style={styles.dialogTitle}>Pagamento de Parcela</Text>
-          <Text style={styles.dialogSubtitle}>
-            {target?.item.descricao} · parcela {target?.index}/{target?.item.numeroParcelas}
-          </Text>
-          <Text style={styles.label}>Data do pagamento</Text>
-          <TextInput
-            value={data}
-            onChangeText={setData}
-            placeholder="AAAA-MM-DD"
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
-            autoCapitalize="none"
-          />
-          <View style={styles.dialogQuickRow}>
-            <TouchableOpacity onPress={() => setData(todayISO())} style={styles.dialogQuickBtn}>
-              <Text style={styles.dialogQuickText}>Hoje</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.label}>Observação (opcional)</Text>
-          <TextInput
-            value={observacao}
-            onChangeText={setObservacao}
-            placeholder="Ex: pago via PIX"
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
-          />
-          <View style={styles.dialogRow}>
-            <TouchableOpacity style={styles.dialogBtnGhost} onPress={onClose}>
-              <Text style={styles.modalCancel}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.dialogBtnPrimary} onPress={handleConfirm}>
-              <Text style={styles.dialogBtnPrimaryText}>Confirmar</Text>
-            </TouchableOpacity>
-          </View>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.overlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.dialog}>
+              <Text style={styles.dialogTitle}>Pagamento de Parcela</Text>
+              <Text style={styles.dialogSubtitle}>
+                {target?.item.descricao} · parcela {target?.index}/{target?.item.numeroParcelas}
+              </Text>
+              <Text style={styles.label}>Data do pagamento</Text>
+              <DateTimePickerField value={data} onChange={setData} allowPast={true} />
+              <Text style={styles.label}>Observação (opcional)</Text>
+              <TextInput
+                value={observacao}
+                onChangeText={setObservacao}
+                placeholder="Ex: pago via PIX"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+              />
+              <View style={styles.dialogRow}>
+                <TouchableOpacity style={styles.dialogBtnGhost} onPress={onClose}>
+                  <Text style={styles.modalCancel}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.dialogBtnPrimary} onPress={handleConfirm}>
+                  <Text style={styles.dialogBtnPrimaryText}>Confirmar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }
@@ -462,7 +458,7 @@ function InstallmentModal({ visible, editing, onClose }: ModalProps) {
             <Text style={styles.modalSave}>Salvar</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={styles.modalBody}>
+        <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>Descrição</Text>
           <TextInput
             value={descricao}
@@ -501,19 +497,7 @@ function InstallmentModal({ visible, editing, onClose }: ModalProps) {
           )}
 
           <Text style={styles.label}>Categoria</Text>
-          <View style={styles.catGrid}>
-            {categories.map((c) => (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.catChip, categoriaId === c.id && styles.catChipActive]}
-                onPress={() => setCategoriaId(c.id)}
-                activeOpacity={0.7}
-              >
-                <CategoryDot color={c.cor} size={10} />
-                <Text style={styles.catChipText}>{c.nome}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <CategorySelectorField categoriaId={categoriaId} onChange={setCategoriaId} />
           
           <View style={styles.notice}>
             {semPrazo ? (

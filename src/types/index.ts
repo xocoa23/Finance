@@ -1,6 +1,6 @@
 export type TransactionType = 'receita' | 'despesa';
 
-export type TransactionOriginType = 'parcela' | 'fixo' | 'meta' | 'meta_fixo';
+export type TransactionOriginType = 'parcela' | 'fixo' | 'meta' | 'meta_fixo' | 'esperado';
 
 export interface TransactionOrigin {
   type: TransactionOriginType;

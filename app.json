@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Flow Finanças",
+    "name": "Flow Finance",
     "slug": "flow-financas",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -85,7 +85,8 @@
         [
           "./assets/icons/icon-light.png"
         ]
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "runtimeVersion": {
       "policy": "appVersion"

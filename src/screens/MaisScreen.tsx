@@ -399,7 +399,7 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
   const calcStyles = React.useMemo(() => getCalcStyles(colors), [colors]);
 
   const [mode, setMode] = useState<CalcMode>('financeiro');
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
 
   React.useEffect(() => {
     if (!visible) return;
@@ -412,10 +412,15 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
     await storage.setRaw('calc_mode', m);
   };
 
-  const addHistory = async (entry: string) => {
+  const addHistory = async (entry: any) => {
     const next = [entry, ...history].slice(0, 30);
     setHistory(next);
     await storage.setRaw('calc_history', JSON.stringify(next));
+  };
+
+  const clearHistory = async () => {
+    setHistory([]);
+    await storage.setRaw('calc_history', '[]');
   };
 
   return (
@@ -447,19 +452,36 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
         </View>
 
         {mode === 'financeiro'
-          ? <FinancialCalc colors={colors} styles={styles} calcStyles={calcStyles} history={history} addHistory={addHistory} />
-          : <NormalCalc colors={colors} calcStyles={calcStyles} history={history} addHistory={addHistory} />
+          ? <FinancialCalc colors={colors} styles={styles} calcStyles={calcStyles} history={history} addHistory={addHistory} clearHistory={clearHistory} />
+          : <NormalCalc colors={colors} calcStyles={calcStyles} history={history} addHistory={addHistory} clearHistory={clearHistory} />
         }
       </SafeAreaView>
     </Modal>
   );
 }
 
-function FinancialCalc({ colors, styles, calcStyles, history, addHistory }: any) {
+function FinancialCalc({ colors, styles, calcStyles, history, addHistory, clearHistory }: any) {
   const [valorRaw, setValorRaw] = useState('');
   const [taxa, setTaxa] = useState('1');
   const [meses, setMeses] = useState('12');
   const [showHistory, setShowHistory] = useState(false);
+
+  React.useEffect(() => {
+    storage.getRaw('calc_fin_session').then((v) => {
+      if (v) {
+        try {
+          const s = JSON.parse(v);
+          setValorRaw(s.valorRaw || '');
+          setTaxa(s.taxa || '1');
+          setMeses(s.meses || '12');
+        } catch {}
+      }
+    });
+  }, []);
+
+  React.useEffect(() => {
+    storage.setRaw('calc_fin_session', JSON.stringify({ valorRaw, taxa, meses }));
+  }, [valorRaw, taxa, meses]);
 
   const principal = parseCurrencyInput(valorRaw);
   const i = parseFloat(taxa.replace(',', '.')) / 100 || 0;
@@ -469,25 +491,39 @@ function FinancialCalc({ colors, styles, calcStyles, history, addHistory }: any)
 
   const handleCalc = () => {
     if (principal <= 0 || n <= 0) return;
-    const entry = `${formatCurrency(principal)} · ${taxa}%/mês · ${n}m → Composto: ${formatCurrency(composto)} / Simples: ${formatCurrency(simples)}`;
-    addHistory(entry);
+    const text = `${formatCurrency(principal)} · ${taxa}%/mês · ${n}m → Composto: ${formatCurrency(composto)} / Simples: ${formatCurrency(simples)}`;
+    addHistory({ text, value: composto });
   };
 
   if (showHistory) {
     return (
       <View style={{ flex: 1 }}>
-        <TouchableOpacity style={calcStyles.historyBack} onPress={() => setShowHistory(false)}>
-          <Icon name="chevron-back" size={18} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>Voltar</Text>
-        </TouchableOpacity>
-        <ScrollView contentContainerStyle={{ padding: SPACING.lg }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md }}>
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setShowHistory(false)}>
+            <Icon name="chevron-back" size={18} color={colors.primary} />
+            <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>Voltar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={clearHistory} style={{ paddingVertical: 4 }}>
+            <Text style={{ color: colors.danger, fontSize: 13, fontWeight: '600' }}>Limpar</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl }}>
           {history.length === 0
             ? <Text style={styles.help}>Nenhum cálculo no histórico.</Text>
-            : history.map((h: string, i: number) => (
-                <View key={i} style={calcStyles.historyItem}>
-                  <Text style={calcStyles.historyText}>{h}</Text>
-                </View>
-              ))
+            : history.map((h: any, i: number) => {
+                const entryText = typeof h === 'string' ? h : h.text;
+                const entryValue = typeof h === 'string' ? null : h.value;
+                return (
+                  <TouchableOpacity key={i} style={calcStyles.historyItem} onPress={() => {
+                    if (entryValue !== null) {
+                      setValorRaw(String(Math.round(entryValue * 100)));
+                      setShowHistory(false);
+                    }
+                  }} activeOpacity={entryValue !== null ? 0.6 : 1}>
+                    <Text style={calcStyles.historyText}>{entryText}</Text>
+                  </TouchableOpacity>
+                );
+              })
           }
         </ScrollView>
       </View>
@@ -540,13 +576,34 @@ function FinancialCalc({ colors, styles, calcStyles, history, addHistory }: any)
   );
 }
 
-function NormalCalc({ colors, calcStyles, history, addHistory }: any) {
+function NormalCalc({ colors, calcStyles, history, addHistory, clearHistory }: any) {
   const [display, setDisplay] = useState('0');
   const [prevValue, setPrevValue] = useState<number | null>(null);
   const [operator, setOperator] = useState<string | null>(null);
   const [waitingForOperand, setWaitingForOperand] = useState(false);
   const [expression, setExpression] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+
+  React.useEffect(() => {
+    storage.getRaw('calc_normal_session').then((v) => {
+      if (v) {
+        try {
+          const s = JSON.parse(v);
+          setDisplay(s.display || '0');
+          setPrevValue(s.prevValue !== undefined ? s.prevValue : null);
+          setOperator(s.operator || null);
+          setWaitingForOperand(!!s.waitingForOperand);
+          setExpression(s.expression || '');
+        } catch {}
+      }
+    });
+  }, []);
+
+  React.useEffect(() => {
+    storage.setRaw('calc_normal_session', JSON.stringify({
+      display, prevValue, operator, waitingForOperand, expression
+    }));
+  }, [display, prevValue, operator, waitingForOperand, expression]);
 
   const inputDigit = (digit: string) => {
     if (waitingForOperand) {
@@ -588,8 +645,8 @@ function NormalCalc({ colors, calcStyles, history, addHistory }: any) {
     const current = parseFloat(display);
     const result = calculate(prevValue, current, operator);
     const rounded = parseFloat(result.toFixed(10));
-    const entry = `${expression} ${current} = ${rounded}`;
-    addHistory(entry);
+    const text = `${expression} ${current} = ${rounded}`;
+    addHistory({ text, value: rounded });
     setDisplay(String(rounded));
     setPrevValue(null);
     setOperator(null);
@@ -646,18 +703,33 @@ function NormalCalc({ colors, calcStyles, history, addHistory }: any) {
   if (showHistory) {
     return (
       <View style={{ flex: 1 }}>
-        <TouchableOpacity style={calcStyles.historyBack} onPress={() => setShowHistory(false)}>
-          <Icon name="chevron-back" size={18} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>Voltar</Text>
-        </TouchableOpacity>
-        <ScrollView contentContainerStyle={{ padding: SPACING.lg }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md }}>
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setShowHistory(false)}>
+            <Icon name="chevron-back" size={18} color={colors.primary} />
+            <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>Voltar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={clearHistory} style={{ paddingVertical: 4 }}>
+            <Text style={{ color: colors.danger, fontSize: 13, fontWeight: '600' }}>Limpar</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl }}>
           {history.length === 0
             ? <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center' }}>Nenhum cálculo no histórico.</Text>
-            : history.map((h: string, i: number) => (
-                <View key={i} style={calcStyles.historyItem}>
-                  <Text style={calcStyles.historyText}>{h}</Text>
-                </View>
-              ))
+            : history.map((h: any, i: number) => {
+                const entryText = typeof h === 'string' ? h : h.text;
+                const entryValue = typeof h === 'string' ? null : h.value;
+                return (
+                  <TouchableOpacity key={i} style={calcStyles.historyItem} onPress={() => {
+                    if (entryValue !== null) {
+                      setDisplay(String(entryValue));
+                      setWaitingForOperand(false);
+                      setShowHistory(false);
+                    }
+                  }} activeOpacity={entryValue !== null ? 0.6 : 1}>
+                    <Text style={calcStyles.historyText}>{entryText}</Text>
+                  </TouchableOpacity>
+                );
+              })
           }
         </ScrollView>
       </View>
@@ -1089,7 +1161,7 @@ function SobreModal({ visible, onClose }: { visible: boolean; onClose: () => voi
           <View style={styles.aboutLogo}>
             <Icon name="wallet" size={40} color={colors.primary} />
           </View>
-          <Text style={styles.aboutName}>Flow Finanças</Text>
+          <Text style={styles.aboutName}>Flow Finance</Text>
           <Text style={styles.aboutVersion}>Versão 1.1.0</Text>
           <Text style={styles.aboutText}>
             App offline para controle financeiro pessoal. Seus dados nunca saem do dispositivo.

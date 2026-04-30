@@ -12,11 +12,15 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useFixedExpenses, useExpectedExpenses, useCategories } from '../hooks/useStorage';
 import { CategoryDot } from '../components/CategoryDot';
+import { CategorySelectorField } from '../components/CategorySelectorField';
+import { DateTimePickerField } from '../components/DateTimePickerField';
 import { FABButton } from '../components/FABButton';
 import { Icon } from '../components/Icon';
 import { MoneyText } from '../components/MoneyText';
@@ -382,25 +386,26 @@ function PaymentFixoModal({ target, onClose }: { target: FixedExpense | null; on
 
   return (
     <Modal visible={!!target} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.dialog}>
-          <Text style={styles.dialogTitle}>Pagar Gasto Fixo</Text>
-          <Text style={styles.dialogSubtitle}>{target?.descricao}</Text>
-          <Text style={styles.label}>Data do pagamento (irá registrar lançamento)</Text>
-          <TextInput
-            value={data} onChangeText={setData} placeholder="AAAA-MM-DD"
-            placeholderTextColor={colors.textMuted} style={styles.input} autoCapitalize="none"
-          />
-          <View style={styles.dialogRow}>
-            <TouchableOpacity style={styles.dialogBtnGhost} onPress={onClose}>
-              <Text style={styles.modalCancel}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.dialogBtnPrimary} onPress={handleConfirm}>
-              <Text style={styles.dialogBtnPrimaryText}>Confirmar</Text>
-            </TouchableOpacity>
-          </View>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.overlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.dialog}>
+              <Text style={styles.dialogTitle}>Pagar Gasto Fixo</Text>
+              <Text style={styles.dialogSubtitle}>{target?.descricao}</Text>
+              <Text style={styles.label}>Data do pagamento (irá registrar lançamento)</Text>
+              <DateTimePickerField value={data} onChange={setData} allowPast={true} />
+              <View style={styles.dialogRow}>
+                <TouchableOpacity style={styles.dialogBtnGhost} onPress={onClose}>
+                  <Text style={styles.modalCancel}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.dialogBtnPrimary} onPress={handleConfirm}>
+                  <Text style={styles.dialogBtnPrimaryText}>Confirmar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }
@@ -456,32 +461,33 @@ function PaymentEsperadoModal({ target, onClose }: { target: ExpectedExpense | n
 
   return (
     <Modal visible={!!target} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.dialog}>
-          <Text style={styles.dialogTitle}>Pagar Gasto Esperado</Text>
-          <Text style={styles.dialogSubtitle}>
-            {target?.descricao}
-          </Text>
-          <Text style={styles.label}>Valor pago</Text>
-          <TextInput
-            value={formatCurrencyInput(valorRaw)} onChangeText={setValorRaw} keyboardType="numeric"
-            style={[styles.input, { fontSize: 20, fontWeight: '700' }]}
-          />
-          <Text style={styles.label}>Data</Text>
-          <TextInput
-            value={data} onChangeText={setData} placeholder="AAAA-MM-DD"
-            placeholderTextColor={colors.textMuted} style={styles.input} autoCapitalize="none"
-          />
-          <View style={styles.dialogRow}>
-            <TouchableOpacity style={styles.dialogBtnGhost} onPress={onClose}>
-              <Text style={styles.modalCancel}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.dialogBtnPrimary} onPress={handleConfirm}>
-              <Text style={styles.dialogBtnPrimaryText}>Confirmar</Text>
-            </TouchableOpacity>
-          </View>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.overlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.dialog}>
+              <Text style={styles.dialogTitle}>Pagar Gasto Esperado</Text>
+              <Text style={styles.dialogSubtitle}>
+                {target?.descricao}
+              </Text>
+              <Text style={styles.label}>Valor pago</Text>
+              <TextInput
+                value={formatCurrencyInput(valorRaw)} onChangeText={setValorRaw} keyboardType="numeric"
+                style={[styles.input, { fontSize: 20, fontWeight: '700' }]}
+              />
+              <Text style={styles.label}>Data</Text>
+              <DateTimePickerField value={data} onChange={setData} allowPast={true} />
+              <View style={styles.dialogRow}>
+                <TouchableOpacity style={styles.dialogBtnGhost} onPress={onClose}>
+                  <Text style={styles.modalCancel}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.dialogBtnPrimary} onPress={handleConfirm}>
+                  <Text style={styles.dialogBtnPrimaryText}>Confirmar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }
@@ -547,7 +553,7 @@ function FixoModal({ visible, editing, onClose }: { visible: boolean; editing: F
           <Text style={styles.modalTitle}>{editing ? 'Editar Gasto Fixo' : 'Novo Gasto Fixo'}</Text>
           <TouchableOpacity onPress={handle}><Text style={styles.modalSave}>Salvar</Text></TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={styles.modalBody}>
+        <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>Descrição</Text>
           <TextInput value={descricao} onChangeText={setDescricao} style={styles.input} />
           <Text style={styles.label}>Valor Mês</Text>
@@ -555,17 +561,7 @@ function FixoModal({ visible, editing, onClose }: { visible: boolean; editing: F
           <Text style={styles.label}>Dia de Vencimento (1-31, opcional)</Text>
           <TextInput value={dia} onChangeText={setDia} keyboardType="numeric" style={styles.input} />
           <Text style={styles.label}>Categoria</Text>
-          <View style={styles.catGrid}>
-            {categories.map((c) => (
-              <TouchableOpacity
-                key={c.id} style={[styles.catChip, categoriaId === c.id && styles.catChipActive]}
-                onPress={() => setCategoriaId(c.id)}
-              >
-                <CategoryDot color={c.cor} size={10} />
-                <Text style={styles.catChipText}>{c.nome}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <CategorySelectorField categoriaId={categoriaId} onChange={setCategoriaId} />
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -633,27 +629,17 @@ function EsperadoModal({ visible, editing, onClose }: { visible: boolean; editin
           <Text style={styles.modalTitle}>{editing ? 'Editar Gasto Esperado' : 'Novo Gasto Esperado'}</Text>
           <TouchableOpacity onPress={handle}><Text style={styles.modalSave}>Salvar</Text></TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={styles.modalBody}>
+        <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>Descrição</Text>
           <TextInput value={descricao} onChangeText={setDescricao} style={styles.input} />
           <Text style={styles.label}>Valor Previsto</Text>
           <TextInput value={formatCurrencyInput(valorRaw)} onChangeText={setValorRaw} keyboardType="numeric" style={[styles.input, styles.inputBig]} />
-          <Text style={styles.label}>Data Prevista (AAAA-MM-DD, opcional)</Text>
-          <TextInput value={dataVenc} onChangeText={setDataVenc} style={styles.input} />
+          <Text style={styles.label}>Data Prevista (opcional)</Text>
+          <DateTimePickerField value={dataVenc} onChange={setDataVenc} allowPast={true} allowEmpty={true} />
           <Text style={styles.label}>Observação</Text>
           <TextInput value={observacao} onChangeText={setObservacao} style={styles.input} />
           <Text style={styles.label}>Categoria</Text>
-          <View style={styles.catGrid}>
-            {categories.map((c) => (
-              <TouchableOpacity
-                key={c.id} style={[styles.catChip, categoriaId === c.id && styles.catChipActive]}
-                onPress={() => setCategoriaId(c.id)}
-              >
-                <CategoryDot color={c.cor} size={10} />
-                <Text style={styles.catChipText}>{c.nome}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <CategorySelectorField categoriaId={categoriaId} onChange={setCategoriaId} />
         </ScrollView>
       </SafeAreaView>
     </Modal>

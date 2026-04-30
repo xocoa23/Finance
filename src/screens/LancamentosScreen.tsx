@@ -20,6 +20,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { useTransactions, useCategories } from '../hooks/useStorage';
+import { CategorySelectorField } from '../components/CategorySelectorField';
+import { DateTimePickerField } from '../components/DateTimePickerField';
 import { useMonthlyIncome } from '../hooks/useMonthlyIncome';
 import { TransactionCard } from '../components/TransactionCard';
 import { CategoryDot } from '../components/CategoryDot';
@@ -47,17 +49,18 @@ export function LancamentosScreen() {
   const { items: categories } = useCategories();
 
   const [filterType, setFilterType] = useState<'all' | TransactionType>('all');
-  const [filterCat, setFilterCat] = useState<string | null>(null);
+  const [filterCats, setFilterCats] = useState<string[]>([]);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalFilterOpen, setModalFilterOpen] = useState(false);
 
   const filtered = useMemo(() => {
     return items.filter((t) => {
       if (filterType !== 'all' && t.tipo !== filterType) return false;
-      if (filterCat && t.categoriaId !== filterCat) return false;
+      if (filterCats.length > 0 && !filterCats.includes(t.categoriaId)) return false;
       return true;
     });
-  }, [items, filterType, filterCat]);
+  }, [items, filterType, filterCats]);
 
   const findCategory = (id: string) => categories.find((c) => c.id === id);
 
@@ -124,25 +127,24 @@ export function LancamentosScreen() {
             </TouchableOpacity>
           ))}
           <View style={styles.divider} />
-          {filterCat && (
-            <TouchableOpacity style={styles.chip} onPress={() => setFilterCat(null)}>
-              <Icon name="close" size={14} color={colors.textSecondary} />
-              <Text style={[styles.chipText, { marginLeft: 4 }]}>Limpar</Text>
-            </TouchableOpacity>
-          )}
-          {categories.map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              style={[styles.chip, filterCat === c.id && styles.chipActive]}
-              onPress={() => setFilterCat(filterCat === c.id ? null : c.id)}
+          
+          {filterCats.length > 0 ? (
+            <TouchableOpacity 
+              style={[styles.chip, styles.chipActive, { paddingHorizontal: 12 }]} 
+              onPress={() => setFilterCats([])}
               activeOpacity={0.7}
             >
-              <CategoryDot color={c.cor} size={8} />
-              <Text style={[styles.chipText, filterCat === c.id && styles.chipTextActive, { marginLeft: 6 }]}>
-                {c.nome}
-              </Text>
+              <Icon name="close" size={18} color={colors.primary} />
             </TouchableOpacity>
-          ))}
+          ) : (
+            <TouchableOpacity 
+              style={[styles.chip, { paddingHorizontal: 12 }]} 
+              onPress={() => setModalFilterOpen(true)}
+              activeOpacity={0.7}
+            >
+              <Icon name="filter-outline" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
 
@@ -165,6 +167,39 @@ export function LancamentosScreen() {
       />
 
       <FABButton onPress={openNew} />
+
+      <Modal visible={modalFilterOpen} transparent animationType="fade" onRequestClose={() => setModalFilterOpen(false)}>
+        <TouchableOpacity style={styles.filterOverlay} activeOpacity={1} onPress={() => setModalFilterOpen(false)}>
+          <View style={styles.filterDialog}>
+            <Text style={styles.filterTitle}>Filtrar por Categoria</Text>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {categories.map((c) => {
+                const isSelected = filterCats.includes(c.id);
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.filterCatRow, isSelected && styles.filterCatRowActive]}
+                    onPress={() => {
+                      setFilterCats(prev => 
+                        isSelected ? prev.filter(id => id !== c.id) : [...prev, c.id]
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.filterCatLeft}>
+                      <CategoryDot color={c.cor} size={12} />
+                      <Text style={[styles.filterCatText, isSelected && styles.filterCatTextActive]}>
+                        {c.nome}
+                      </Text>
+                    </View>
+                    {isSelected && <Icon name="checkmark" size={18} color={colors.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <TransactionModal
         visible={modalOpen}
@@ -320,7 +355,7 @@ function TransactionModal({ visible, editing, onClose, onSave }: ModalProps) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.modalBody}>
+        <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
           <View style={styles.segment}>
             <TouchableOpacity
               style={[styles.segmentBtn, tipoLocal === 'despesa' && styles.segmentBtnDanger]}
@@ -418,30 +453,12 @@ function TransactionModal({ visible, editing, onClose, onSave }: ModalProps) {
           )}
 
           <Text style={styles.label}>Data</Text>
-          <TextInput
-            value={data}
-            onChangeText={setData}
-            placeholder="2026-04-28"
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
-          />
+          <DateTimePickerField value={data} onChange={setData} allowPast={true} />
 
           {tipoLocal !== 'salario' && (
             <>
               <Text style={styles.label}>Categoria</Text>
-              <View style={styles.catGrid}>
-                {categories.map((c) => (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[styles.catChip, categoriaId === c.id && styles.catChipActive]}
-                    onPress={() => setCategoriaId(c.id)}
-                    activeOpacity={0.7}
-                  >
-                    <CategoryDot color={c.cor} size={10} />
-                    <Text style={styles.catChipText}>{c.nome}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <CategorySelectorField categoriaId={categoriaId} onChange={setCategoriaId} />
             </>
           )}
 
@@ -631,4 +648,48 @@ const getStyles = (colors: any) => StyleSheet.create({
   previewImg: { width: 140, height: 140, borderRadius: RADIUS.md },
   previewText: { color: colors.text, fontSize: 13 },
   removeBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+
+  filterOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: SPACING.xl,
+  },
+  filterDialog: {
+    backgroundColor: colors.card,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    width: '100%',
+  },
+  filterTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: SPACING.md,
+  },
+  filterCatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.md,
+  },
+  filterCatRowActive: {
+    backgroundColor: colors.primarySoft,
+  },
+  filterCatLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  filterCatText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  filterCatTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
 });

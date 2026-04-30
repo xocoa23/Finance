@@ -303,55 +303,64 @@ function PeriodPickerModal({ visible, currentKey, onClose, onSelect }: PickerPro
   const { colors } = useTheme();
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
-  const [anchor, setAnchor] = useState(currentKey);
+  const currentYearNum = parseInt(currentKey.split('-')[0], 10) || new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYearNum);
 
   React.useEffect(() => {
-    if (visible) setAnchor(currentKey);
+    if (visible) {
+      setSelectedYear(parseInt(currentKey.split('-')[0], 10) || new Date().getFullYear());
+    }
   }, [visible, currentKey]);
 
-  const months = useMemo(() => {
-    const list: string[] = [];
-    let k = anchor;
-    for (let i = -6; i <= 6; i++) {
-      list.push(shiftMonth(anchor, i));
+  const handleYearChange = (delta: number) => {
+    const next = selectedYear + delta;
+    if (next >= 2016 && next <= 2036) {
+      setSelectedYear(next);
     }
-    return list;
-  }, [anchor]);
+  };
+
+  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <View style={styles.pickerCard}>
           <View style={styles.pickerHeader}>
-            <TouchableOpacity onPress={() => setAnchor(shiftMonth(anchor, -12))}>
-              <Icon name="chevron-back" size={22} color={colors.text} />
+            <TouchableOpacity onPress={() => handleYearChange(-1)}>
+              <Icon name="chevron-back" size={22} color={selectedYear > 2016 ? colors.text : colors.textMuted} />
             </TouchableOpacity>
-            <Text style={styles.pickerTitle}>Selecione o período</Text>
-            <TouchableOpacity onPress={() => setAnchor(shiftMonth(anchor, 12))}>
-              <Icon name="chevron-forward" size={22} color={colors.text} />
+            <Text style={styles.pickerTitle}>{selectedYear}</Text>
+            <TouchableOpacity onPress={() => handleYearChange(1)}>
+              <Icon name="chevron-forward" size={22} color={selectedYear < 2036 ? colors.text : colors.textMuted} />
             </TouchableOpacity>
           </View>
-          <ScrollView style={{ maxHeight: 360 }}>
-            {months.map((m) => (
-              <TouchableOpacity
-                key={m}
-                style={[styles.pickerRow, currentKey === m && styles.pickerRowActive]}
-                onPress={() => onSelect(m)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.pickerText, currentKey === m && { color: colors.primary }]}>
-                  {formatPeriod(m)}
-                </Text>
-                {currentKey === m && <Icon name="checkmark" size={18} color={colors.primary} />}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          
+          <View style={styles.pickerGrid}>
+            {monthNames.map((m, idx) => {
+              const monthStr = String(idx + 1).padStart(2, '0');
+              const key = `${selectedYear}-${monthStr}`;
+              const isActive = key === currentKey;
+              return (
+                <TouchableOpacity
+                  key={m}
+                  style={[styles.pickerCell, isActive && styles.pickerCellActive]}
+                  onPress={() => onSelect(key)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.pickerCellText, isActive && styles.pickerCellTextActive]}>
+                    {m}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <TouchableOpacity
             style={styles.pickerToday}
             onPress={() => onSelect(getCurrentMonthKey())}
             activeOpacity={0.7}
           >
-            <Text style={styles.pickerTodayText}>Hoje</Text>
+            <Text style={styles.pickerTodayText}>Voltar para o Mês Atual</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -525,19 +534,34 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: SPACING.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSoft,
-    marginBottom: SPACING.sm,
   },
-  pickerTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  pickerRow: {
+  pickerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  pickerGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
     justifyContent: 'space-between',
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.md,
-    borderRadius: RADIUS.sm,
+    marginVertical: SPACING.md,
   },
-  pickerRowActive: { backgroundColor: colors.primarySoft },
-  pickerText: { color: colors.text, fontSize: 15 },
+  pickerCell: {
+    width: '31%',
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    borderRadius: RADIUS.md,
+    backgroundColor: colors.cardElevated,
+  },
+  pickerCellActive: {
+    backgroundColor: colors.primary,
+  },
+  pickerCellText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  pickerCellTextActive: {
+    color: '#0a0a0b',
+    fontWeight: '700',
+  },
   pickerToday: {
     marginTop: SPACING.sm,
     paddingVertical: SPACING.md,
@@ -545,5 +569,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.cardElevated,
     borderRadius: RADIUS.md,
   },
-  pickerTodayText: { color: colors.primary, fontSize: 14, fontWeight: '600' },
+  pickerTodayText: { color: colors.text, fontSize: 14, fontWeight: '600' },
 });
