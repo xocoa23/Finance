@@ -81,9 +81,11 @@
       ],
       [
         "expo-alternate-app-icons",
-        [
-          "./assets/icons/icon-light.png"
-        ]
+        {
+          "icons": {
+            "icon-light": "./assets/icons/icon-light.png"
+          }
+        }
       ],
       "@react-native-community/datetimepicker"
     ],

@@ -40,15 +40,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const applyAlternateIcon = useCallback(async (iconPref: AppIcon, effectiveTheme: 'dark' | 'light') => {
     try {
-      const { setAlternateAppIcon } = await import('expo-alternate-app-icons');
+      const AlternateIcons = await import('expo-alternate-app-icons');
+      // Some versions export setAlternateAppIcon directly, others as a property of default
+      const setter = AlternateIcons.setAlternateAppIcon || (AlternateIcons as any).default?.setAlternateAppIcon;
+      
+      if (typeof setter !== 'function') return;
+
       const resolved = iconPref === 'auto' ? effectiveTheme : (iconPref === 'light' ? 'light' : 'default');
+      
       if (resolved === 'light') {
-        await setAlternateAppIcon('icon-light');
+        await setter('icon-light');
       } else {
-        await setAlternateAppIcon(null);
+        await setter(null);
       }
-    } catch {
-      // Not supported in Expo Go
+    } catch (e) {
+      // Silently fail if not supported (e.g. Expo Go)
     }
   }, []);
 
