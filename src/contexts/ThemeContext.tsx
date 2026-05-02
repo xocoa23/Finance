@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, useColorScheme } from 'react-native';
+import { useColorScheme } from 'react-native';
 import { setAlternateAppIcon } from 'expo-alternate-app-icons';
 import { storage } from '../services/storage';
 import { AppTheme, AppIcon, darkColors, lightColors } from '../types';
@@ -9,6 +9,7 @@ export interface ThemeContextData {
   setTheme: (theme: AppTheme) => Promise<void>;
   icon: AppIcon;
   setIcon: (icon: AppIcon) => Promise<void>;
+  iconSupported: boolean;
   colors: typeof darkColors;
 }
 
@@ -18,14 +19,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useColorScheme();
   const [theme, setThemeState] = useState<AppTheme>('dark');
   const [icon, setIconState] = useState<AppIcon>('default');
+  const [iconSupported, setIconSupported] = useState(true);
 
   useEffect(() => {
     storage.getSettings().then((settings) => {
-      if (settings.tema) {
-        setThemeState(settings.tema);
-      }
-      if (settings.iconePreferido) {
-        setIconState(settings.iconePreferido);
+      if (settings.tema) setThemeState(settings.tema);
+      if (settings.iconePreferido) setIconState(settings.iconePreferido);
+    });
+    // Probe: detect if alternate icons are supported (blocked on sideloaded apps)
+    setAlternateAppIcon(null).catch((e: any) => {
+      if (String(e?.message ?? e).toLowerCase().includes('not supported')) {
+        setIconSupported(false);
       }
     });
   }, []);
@@ -56,7 +60,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     await storage.setSettings({ ...settings, iconePreferido: newIcon });
     // Apply to OS — only works in native builds, fails silently elsewhere
     applyAlternateIcon(newIcon, activeTheme).catch((e: any) => {
-      Alert.alert('Erro troca de ícone [DEBUG]', e?.message ?? String(e));
+      console.warn('[ThemeContext] setAlternateAppIcon falhou:', e?.message ?? String(e));
     });
   }, [applyAlternateIcon, activeTheme]);
 
@@ -72,9 +76,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setTheme,
       icon,
       setIcon,
+      iconSupported,
       colors,
     }),
-    [theme, colors, setTheme, icon, setIcon]
+    [theme, colors, setTheme, icon, setIcon, iconSupported]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

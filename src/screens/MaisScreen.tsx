@@ -240,7 +240,7 @@ function PerfilModal({ visible, onClose }: { visible: boolean; onClose: () => vo
 }
 
 function AparenciaModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const { colors, theme, icon, setTheme, setIcon } = useTheme();
+  const { colors, theme, icon, setTheme, setIcon, iconSupported } = useTheme();
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
   return (
@@ -273,39 +273,43 @@ function AparenciaModal({ visible, onClose }: { visible: boolean; onClose: () =>
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.label, { marginTop: SPACING.xl }]}>Ícone do Aplicativo</Text>
-          <View style={styles.sectionCard}>
-            <TouchableOpacity style={styles.row} onPress={() => setIcon('auto')} activeOpacity={0.7}>
-              <View style={styles.rowIconWrap}><Icon name="color-wand-outline" size={20} color={colors.primary} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Automático</Text>
-                <Text style={styles.rowSubtitle}>Segue o tema do app</Text>
+          {iconSupported && (
+            <>
+              <Text style={[styles.label, { marginTop: SPACING.xl }]}>Ícone do Aplicativo</Text>
+              <View style={styles.sectionCard}>
+                <TouchableOpacity style={styles.row} onPress={() => setIcon('auto')} activeOpacity={0.7}>
+                  <View style={styles.rowIconWrap}><Icon name="color-wand-outline" size={20} color={colors.primary} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowTitle}>Automático</Text>
+                    <Text style={styles.rowSubtitle}>Segue o tema do app</Text>
+                  </View>
+                  {icon === 'auto' && <Icon name="checkmark" size={20} color={colors.primary} />}
+                </TouchableOpacity>
+                <View style={styles.rowBorder} />
+                <TouchableOpacity style={styles.row} onPress={() => setIcon('default')} activeOpacity={0.7}>
+                  <Image
+                    source={require('../../assets/icon.png')}
+                    style={{ width: 36, height: 36, borderRadius: 8 }}
+                  />
+                  <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+                    <Text style={styles.rowTitle}>Escuro</Text>
+                  </View>
+                  {icon === 'default' && <Icon name="checkmark" size={20} color={colors.primary} />}
+                </TouchableOpacity>
+                <View style={styles.rowBorder} />
+                <TouchableOpacity style={styles.row} onPress={() => setIcon('light')} activeOpacity={0.7}>
+                  <Image
+                    source={require('../../assets/icons/icon-light.png')}
+                    style={{ width: 36, height: 36, borderRadius: 8 }}
+                  />
+                  <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+                    <Text style={styles.rowTitle}>Claro</Text>
+                  </View>
+                  {icon === 'light' && <Icon name="checkmark" size={20} color={colors.primary} />}
+                </TouchableOpacity>
               </View>
-              {icon === 'auto' && <Icon name="checkmark" size={20} color={colors.primary} />}
-            </TouchableOpacity>
-            <View style={styles.rowBorder} />
-            <TouchableOpacity style={styles.row} onPress={() => setIcon('default')} activeOpacity={0.7}>
-              <Image
-                source={require('../../assets/icon.png')}
-                style={{ width: 36, height: 36, borderRadius: 8 }}
-              />
-              <View style={{ flex: 1, marginLeft: SPACING.sm }}>
-                <Text style={styles.rowTitle}>Escuro</Text>
-              </View>
-              {icon === 'default' && <Icon name="checkmark" size={20} color={colors.primary} />}
-            </TouchableOpacity>
-            <View style={styles.rowBorder} />
-            <TouchableOpacity style={styles.row} onPress={() => setIcon('light')} activeOpacity={0.7}>
-              <Image
-                source={require('../../assets/icons/icon-light.png')}
-                style={{ width: 36, height: 36, borderRadius: 8 }}
-              />
-              <View style={{ flex: 1, marginLeft: SPACING.sm }}>
-                <Text style={styles.rowTitle}>Claro</Text>
-              </View>
-              {icon === 'light' && <Icon name="checkmark" size={20} color={colors.primary} />}
-            </TouchableOpacity>
-          </View>
+            </>
+          )}
 
         </ScrollView>
       </SafeAreaView>
