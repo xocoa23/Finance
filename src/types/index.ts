@@ -102,6 +102,14 @@ export interface Goal {
 
 export type SalarioAjusteTipo = 'soma' | 'subtracao';
 
+export interface SalarioAjuste {
+  id: string;
+  descricao: string;
+  valor: number;
+  tipo: SalarioAjusteTipo;
+  ehPorcentagem: boolean;
+}
+
 export type AppTheme = 'dark' | 'light' | 'auto';
 export type AppIcon = 'default' | 'light' | 'auto';
 
@@ -114,8 +122,11 @@ export interface AppSettings {
   salarioAjusteValor?: number;
   salarioAjusteTipo?: SalarioAjusteTipo;
   salarioAjusteEhPorcentagem?: boolean;
+  salarioAjustes?: SalarioAjuste[];
   tema?: AppTheme;
   iconePreferido?: AppIcon;
+  nomeCompleto?: string;
+  cpf?: string;
 }
 
 export const DEFAULT_CATEGORIES: Category[] = [

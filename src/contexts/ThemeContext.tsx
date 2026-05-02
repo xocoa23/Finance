@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
+import { setAlternateAppIcon } from 'expo-alternate-app-icons';
 import { storage } from '../services/storage';
 import { AppTheme, AppIcon, darkColors, lightColors } from '../types';
 
@@ -40,21 +41,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const applyAlternateIcon = useCallback(async (iconPref: AppIcon, effectiveTheme: 'dark' | 'light') => {
     try {
-      const AlternateIcons = await import('expo-alternate-app-icons');
-      // Some versions export setAlternateAppIcon directly, others as a property of default
-      const setter = AlternateIcons.setAlternateAppIcon || (AlternateIcons as any).default?.setAlternateAppIcon;
-      
-      if (typeof setter !== 'function') return;
-
-      const resolved = iconPref === 'auto' ? effectiveTheme : (iconPref === 'light' ? 'light' : 'default');
-      
+      const resolved = iconPref === 'auto' ? effectiveTheme : iconPref;
       if (resolved === 'light') {
-        await setter('icon-light');
+        await setAlternateAppIcon('icon-light');
       } else {
-        await setter(null);
+        await setAlternateAppIcon(null);
       }
-    } catch (e) {
-      // Silently fail if not supported (e.g. Expo Go)
+    } catch {
+      // Not supported outside native builds (Expo Go)
     }
   }, []);
 

@@ -12,13 +12,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import * as Haptics from 'expo-haptics';
-import { useTransactions, useCategories, useFixedExpenses, useGoals } from '../hooks/useStorage';
+import * as ImagePicker from 'expo-image-picker';
+import { useTransactions, useCategories, useFixedExpenses, useGoals, useExpectedExpenses, useInstallments } from '../hooks/useStorage';
 import { useHideValues } from '../hooks/useHideValues';
 import { useMonthlyIncome } from '../hooks/useMonthlyIncome';
 import { TransactionCard } from '../components/TransactionCard';
 import { Icon } from '../components/Icon';
 import { CategoryDot } from '../components/CategoryDot';
 import { MoneyText } from '../components/MoneyText';
+import { QuickUploadModal } from '../components/QuickUploadModal';
 import { HistoricoModal } from './HistoricoModal';
 import { RADIUS, SPACING } from '../types';
 import { useTheme } from '../hooks/useTheme';
@@ -45,47 +47,125 @@ export function DashboardScreen() {
   const { items: categories } = useCategories();
   const { items: fixed } = useFixedExpenses();
   const { items: goals } = useGoals();
+  const { items: esperados } = useExpectedExpenses();
+  const { items: installments } = useInstallments();
   const [hidden, toggleHidden] = useHideValues();
   const { rendaLiquida: rendaMensal } = useMonthlyIncome();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [periodKey, setPeriodKey] = useState(getCurrentMonthKey());
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [quickUploadUri, setQuickUploadUri] = useState('');
+  const [quickUploadOpen, setQuickUploadOpen] = useState(false);
 
   const handleToggleEye = () => {
     Haptics.selectionAsync().catch(() => {});
     toggleHidden();
   };
 
+  const handleQuickUpload = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setQuickUploadUri(result.assets[0].uri);
+      setQuickUploadOpen(true);
+    }
+  };
+
   const isCurrent = periodKey === getCurrentMonthKey();
 
   const summary = useMemo(() => {
     const monthTx = transactions.filter((t) => t.data.startsWith(periodKey));
-    const receitas = monthTx
-      .filter((t) => t.tipo === 'receita')
-      .reduce((s, t) => s + t.valor, 0);
-    const despesas = monthTx
-      .filter((t) => t.tipo === 'despesa')
-      .reduce((s, t) => s + t.valor, 0);
-    const fixosTotal = fixed.reduce((s, f) => s + f.valor, 0);
-    const fixosPendentes = fixed
-      .filter((f) => !f.pagoNoMes?.[periodKey])
-      .reduce((s, f) => s + f.valor, 0);
-    const aPagar = isCurrent ? fixosPendentes : 0;
-    const aportesMensais = goals.reduce(
-      (s, g) => s + (g.valorMensalFixo ?? 0),
-      0,
+    const receitas = monthTx.filter((t) => t.tipo === 'receita').reduce((s, t) => s + t.valor, 0);
+    // despesas = realidade: tudo que foi efetivamente gasto este mês (inclui fixos/esperados/metas pagos)
+    const despesas = monthTx.filter((t) => t.tipo === 'despesa').reduce((s, t) => s + t.valor, 0);
+
+    // ── Gastos fixos ──────────────────────────────────────────────
+    const fixosList = [...fixed]
+      .map((f) => ({ id: f.id, descricao: f.descricao, valor: f.valor, pago: !!f.pagoNoMes?.[periodKey] }))
+      .sort((a, b) => Number(a.pago) - Number(b.pago));
+    const fixosPendentesTotal = fixosList.filter((f) => !f.pago).reduce((s, f) => s + f.valor, 0);
+    const fixosPagosTotal = fixosList.filter((f) => f.pago).reduce((s, f) => s + f.valor, 0);
+
+    // ── Gastos esperados (mês atual apenas) ───────────────────────
+    const esperadosList = isCurrent
+      ? [...esperados]
+          .map((e) => ({ id: e.id, descricao: e.descricao, valor: e.valor, pago: !!e.pagoNoMes?.[periodKey] }))
+          .sort((a, b) => Number(a.pago) - Number(b.pago))
+      : [];
+    const esperadosPendentesTotal = esperadosList.filter((e) => !e.pago).reduce((s, e) => s + e.valor, 0);
+    const esperadosPagosTotal = esperadosList.filter((e) => e.pago).reduce((s, e) => s + e.valor, 0);
+
+    // ── Aportes mensais em metas (mês atual apenas) ───────────────
+    const goalsList = isCurrent
+      ? goals
+          .filter((g) => (g.valorMensalFixo ?? 0) > 0)
+          .map((g) => ({
+            id: g.id,
+            nome: g.nome,
+            valor: g.valorMensalFixo!,
+            pago: (g.aportes ?? []).some((a) => a.data.startsWith(periodKey) && a.tipo !== 'rendimento'),
+          }))
+          .sort((a, b) => Number(a.pago) - Number(b.pago))
+      : [];
+    const aportesPendentesTotal = goalsList.filter((g) => !g.pago).reduce((s, g) => s + g.valor, 0);
+    const aportesPagosTotal = goalsList.filter((g) => g.pago).reduce((s, g) => s + g.valor, 0);
+
+    // ── Parcelas avulsas (sem vínculo com gasto fixo) ─────────────
+    const parcelaAtivas = installments.filter(
+      (i) => i.parcelasPagas < i.numeroParcelas && !i.linkedFixedExpenseId,
     );
-    const saldoProjetado = rendaMensal - fixosTotal - despesas - aportesMensais;
+    const parcelasPagasItems = parcelaAtivas.filter(
+      (i) => (i.pagamentos ?? []).some((p) => p.paidAt.startsWith(periodKey)),
+    );
+    const parcelasPendentesItems = parcelaAtivas.filter(
+      (i) => !(i.pagamentos ?? []).some((p) => p.paidAt.startsWith(periodKey)),
+    );
+    const parcelasPagasTotal = parcelasPagasItems.reduce((s, i) => s + i.valorParcela, 0);
+    const parcelasPendentesTotal = parcelasPendentesItems.reduce((s, i) => s + i.valorParcela, 0);
+
+    // ── Outros gastos livres (despesas sem categoria rastreada) ───
+    // = despesas reais - tudo que é rastreado (fixos/esperados/aportes/parcelas pagos)
+    const despesasVariaveis = Math.max(
+      0,
+      despesas - fixosPagosTotal - esperadosPagosTotal - aportesPagosTotal - parcelasPagasTotal,
+    );
+
+    // ── Fórmula correta: renda - real - pendente ──────────────────
+    // "real" (despesas) já inclui tudo pago via transação — sem dupla contagem
+    // "pendente" são obrigações ainda não quitadas que reduzirão o saldo futuro
+    const saldoProjetado = isCurrent
+      ? rendaMensal - despesas - fixosPendentesTotal - esperadosPendentesTotal - aportesPendentesTotal - parcelasPendentesTotal
+      : receitas - despesas;
+
+    const aPagar = isCurrent
+      ? fixosPendentesTotal + esperadosPendentesTotal + aportesPendentesTotal + parcelasPendentesTotal
+      : 0;
+
     return {
       receitas,
       despesas,
       saldo: receitas - despesas,
+      fixosList,
+      fixosPendentesTotal,
+      fixosPagosTotal,
+      esperadosList,
+      esperadosPendentesTotal,
+      esperadosPagosTotal,
+      goalsList,
+      aportesPendentesTotal,
+      aportesPagosTotal,
+      parcelasPagasItems,
+      parcelasPendentesItems,
+      parcelasPagasTotal,
+      parcelasPendentesTotal,
+      despesasVariaveis,
       aPagar,
-      fixosTotal,
-      aportesMensais,
       saldoProjetado,
     };
-  }, [transactions, fixed, goals, periodKey, isCurrent, rendaMensal]);
+  }, [transactions, fixed, goals, esperados, installments, periodKey, isCurrent, rendaMensal]);
 
   const lastFive = useMemo(() => {
     return transactions.filter((t) => t.data.startsWith(periodKey)).slice(0, 5);
@@ -134,6 +214,13 @@ export function DashboardScreen() {
           </View>
           <TouchableOpacity
             style={styles.iconBtn}
+            onPress={handleQuickUpload}
+            activeOpacity={0.7}
+          >
+            <Icon name="attach-outline" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconBtn, { marginLeft: SPACING.sm }]}
             onPress={handleToggleEye}
             activeOpacity={0.7}
           >
@@ -185,42 +272,123 @@ export function DashboardScreen() {
               <Icon name="trending-up-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.projectionLabel}>Projeção do mês</Text>
             </View>
+
+            {/* Renda mensal */}
             <View style={styles.projectionRow}>
               <Text style={styles.projectionItemLabel}>Renda mensal</Text>
               <MoneyText value={rendaMensal} style={styles.projectionItemValue} />
             </View>
-            <View style={styles.projectionRow}>
-              <Text style={styles.projectionItemLabel}>Gastos fixos</Text>
-              <MoneyText
-                value={summary.fixosTotal}
-                prefix="− "
-                style={[styles.projectionItemValue, { color: colors.danger }]}
-              />
-            </View>
-            {summary.aportesMensais > 0 && (
-              <View style={styles.projectionRow}>
-                <Text style={styles.projectionItemLabel}>Aportes em metas</Text>
-                <MoneyText
-                  value={summary.aportesMensais}
-                  prefix="− "
-                  style={[styles.projectionItemValue, { color: colors.warning }]}
-                />
-              </View>
-            )}
-            <View style={styles.projectionRow}>
-              <Text style={styles.projectionItemLabel}>Despesas do mês</Text>
+
+            {/* ── Despesas do mês (destaque) ─────────────────────── */}
+            <View style={[styles.projectionRow, styles.projectionHighlightRow]}>
+              <Text style={styles.projectionHighlightLabel}>Despesas do mês</Text>
               <MoneyText
                 value={summary.despesas}
-                prefix="− "
-                style={[styles.projectionItemValue, { color: colors.danger }]}
+                prefix={summary.despesas > 0 ? '− ' : ''}
+                style={[styles.projectionHighlightValue, { color: summary.despesas > 0 ? colors.danger : colors.textMuted }]}
               />
             </View>
-            <View style={[styles.projectionRow, styles.projectionTotal]}>
-              <Text style={styles.projectionTotalLabel}>Sobra prevista</Text>
+
+            {/* Sub-linhas: itens rastreados já pagos */}
+            {summary.fixosList.filter((f) => f.pago).map((f) => (
+              <View key={f.id} style={styles.projectionSubItem}>
+                <View style={styles.projectionSubItemLeft}>
+                  <View style={styles.pagoBadge}><Text style={styles.pagoBadgeText}>PAGO</Text></View>
+                  <Text style={[styles.projectionSubLabel, styles.projectionSubLabelPago]}>{f.descricao}</Text>
+                </View>
+                <MoneyText value={f.valor} style={[styles.projectionSubValor, styles.projectionSubLabelPago]} />
+              </View>
+            ))}
+            {summary.esperadosList.filter((e) => e.pago).map((e) => (
+              <View key={e.id} style={styles.projectionSubItem}>
+                <View style={styles.projectionSubItemLeft}>
+                  <View style={styles.pagoBadge}><Text style={styles.pagoBadgeText}>PAGO</Text></View>
+                  <Text style={[styles.projectionSubLabel, styles.projectionSubLabelPago]}>{e.descricao}</Text>
+                </View>
+                <MoneyText value={e.valor} style={[styles.projectionSubValor, styles.projectionSubLabelPago]} />
+              </View>
+            ))}
+            {summary.goalsList.filter((g) => g.pago).map((g) => (
+              <View key={g.id} style={styles.projectionSubItem}>
+                <View style={styles.projectionSubItemLeft}>
+                  <View style={styles.pagoBadge}><Text style={styles.pagoBadgeText}>PAGO</Text></View>
+                  <Text style={[styles.projectionSubLabel, styles.projectionSubLabelPago]}>Meta: {g.nome}</Text>
+                </View>
+                <MoneyText value={g.valor} style={[styles.projectionSubValor, styles.projectionSubLabelPago]} />
+              </View>
+            ))}
+            {summary.parcelasPagasItems.map((i) => (
+              <View key={i.id} style={styles.projectionSubItem}>
+                <View style={styles.projectionSubItemLeft}>
+                  <View style={styles.pagoBadge}><Text style={styles.pagoBadgeText}>PAGO</Text></View>
+                  <Text style={[styles.projectionSubLabel, styles.projectionSubLabelPago]}>{i.descricao}</Text>
+                </View>
+                <MoneyText value={i.valorParcela} style={[styles.projectionSubValor, styles.projectionSubLabelPago]} />
+              </View>
+            ))}
+            {summary.despesasVariaveis > 0 && (
+              <View style={styles.projectionSubItem}>
+                <View style={styles.projectionSubItemLeft}>
+                  <View style={styles.pendenteBadge}><Text style={styles.pendenteBadgeText}>·</Text></View>
+                  <Text style={styles.projectionSubLabel}>Outros gastos</Text>
+                </View>
+                <MoneyText value={summary.despesasVariaveis} style={styles.projectionSubValor} />
+              </View>
+            )}
+
+            {/* ── Seção "A pagar" ────────────────────────────────── */}
+            {(summary.fixosPendentesTotal > 0 || summary.esperadosPendentesTotal > 0 ||
+              summary.aportesPendentesTotal > 0 || summary.parcelasPendentesTotal > 0) && (
+              <>
+                <View style={styles.projectionSectionDivider}>
+                  <Text style={styles.projectionSectionLabel}>A pagar</Text>
+                </View>
+                {summary.fixosList.filter((f) => !f.pago).map((f) => (
+                  <View key={f.id} style={styles.projectionSubItem}>
+                    <View style={styles.projectionSubItemLeft}>
+                      <View style={styles.pendenteBadge}><Text style={styles.pendenteBadgeText}>·</Text></View>
+                      <Text style={styles.projectionSubLabel}>{f.descricao}</Text>
+                    </View>
+                    <MoneyText value={f.valor} prefix="− " style={[styles.projectionSubValor, { color: colors.danger }]} />
+                  </View>
+                ))}
+                {summary.esperadosList.filter((e) => !e.pago).map((e) => (
+                  <View key={e.id} style={styles.projectionSubItem}>
+                    <View style={styles.projectionSubItemLeft}>
+                      <View style={styles.pendenteBadge}><Text style={styles.pendenteBadgeText}>·</Text></View>
+                      <Text style={styles.projectionSubLabel}>{e.descricao}</Text>
+                    </View>
+                    <MoneyText value={e.valor} prefix="− " style={[styles.projectionSubValor, { color: colors.danger }]} />
+                  </View>
+                ))}
+                {summary.goalsList.filter((g) => !g.pago).map((g) => (
+                  <View key={g.id} style={styles.projectionSubItem}>
+                    <View style={styles.projectionSubItemLeft}>
+                      <View style={styles.pendenteBadge}><Text style={styles.pendenteBadgeText}>·</Text></View>
+                      <Text style={styles.projectionSubLabel}>Meta: {g.nome}</Text>
+                    </View>
+                    <MoneyText value={g.valor} prefix="− " style={[styles.projectionSubValor, { color: colors.warning }]} />
+                  </View>
+                ))}
+                {summary.parcelasPendentesItems.map((i) => (
+                  <View key={i.id} style={styles.projectionSubItem}>
+                    <View style={styles.projectionSubItemLeft}>
+                      <View style={styles.pendenteBadge}><Text style={styles.pendenteBadgeText}>·</Text></View>
+                      <Text style={styles.projectionSubLabel}>{i.descricao}</Text>
+                    </View>
+                    <MoneyText value={i.valorParcela} prefix="− " style={[styles.projectionSubValor, { color: colors.danger }]} />
+                  </View>
+                ))}
+              </>
+            )}
+
+            {/* ── Sobra prevista (destaque) ──────────────────────── */}
+            <View style={[styles.projectionRow, styles.projectionTotal, styles.projectionHighlightRow]}>
+              <Text style={styles.projectionHighlightLabel}>Sobra prevista</Text>
               <MoneyText
                 value={summary.saldoProjetado}
                 style={[
-                  styles.projectionTotalValue,
+                  styles.projectionHighlightValue,
                   { color: summary.saldoProjetado >= 0 ? colors.primary : colors.danger },
                 ]}
               />
@@ -279,6 +447,11 @@ export function DashboardScreen() {
       </ScrollView>
 
       <HistoricoModal visible={historyOpen} onClose={() => setHistoryOpen(false)} />
+      <QuickUploadModal
+        visible={quickUploadOpen}
+        comprovanteUri={quickUploadUri}
+        onClose={() => setQuickUploadOpen(false)}
+      />
       <PeriodPickerModal
         visible={pickerOpen}
         currentKey={periodKey}
@@ -441,6 +614,79 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   projectionItemLabel: { color: colors.textSecondary, fontSize: 13 },
   projectionItemValue: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  projectionSubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+    paddingLeft: SPACING.md,
+  },
+  projectionSubItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingLeft: SPACING.sm,
+  },
+  projectionSubItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  projectionSubLabel: { color: colors.textSecondary, fontSize: 12 },
+  projectionSubLabelPago: { color: colors.textMuted },
+  projectionSubValor: { color: colors.textSecondary, fontSize: 12, fontWeight: '500' },
+  projectionSubNote: { color: colors.textMuted, fontSize: 11, fontStyle: 'italic' },
+  pagoBadge: {
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  pagoBadgeText: {
+    color: colors.primary,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  pendenteBadge: {
+    width: 16,
+    alignItems: 'center',
+  },
+  pendenteBadgeText: {
+    color: colors.danger,
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  projectionHighlightRow: {
+    marginTop: 2,
+  },
+  projectionHighlightLabel: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  projectionHighlightValue: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  projectionSectionDivider: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  projectionSectionLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600' as const,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.8,
+  },
   projectionTotal: {
     borderTopWidth: 1,
     borderTopColor: colors.borderSoft,

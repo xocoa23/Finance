@@ -496,6 +496,33 @@ export async function deleteGoal(
   await storage.setGoals(goals.filter((g) => g.id !== id));
 }
 
+export async function revertGoalContribution(goalId: string): Promise<void> {
+  const goals = await storage.getGoals();
+  const item = goals.find((g) => g.id === goalId);
+  if (!item) return;
+
+  const aportes = item.aportes ?? [];
+  const manualAportes = aportes
+    .filter((a) => a.tipo !== 'rendimento')
+    .sort((a, b) => b.data.localeCompare(a.data));
+
+  if (manualAportes.length === 0) return;
+  const last = manualAportes[0];
+
+  if (last.transactionId) {
+    await deleteTransactionById(last.transactionId);
+  }
+
+  const newAportes = aportes.filter(
+    (a) => !(a.transactionId === last.transactionId && a.data === last.data && a.valor === last.valor),
+  );
+  const newValorAtual = Math.max(0, item.valorAtual - last.valor);
+
+  await storage.setGoals(
+    goals.map((g) => (g.id === goalId ? { ...g, valorAtual: newValorAtual, aportes: newAportes } : g)),
+  );
+}
+
 export async function createInstallmentWithLinkedFixed(
   base: Omit<Installment, 'id' | 'criadoEm' | 'pagamentos' | 'parcelasPagas' | 'valorParcela' | 'linkedFixedExpenseId'> & {
     parcelasPagas?: number;

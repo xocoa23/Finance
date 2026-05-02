@@ -31,6 +31,7 @@ import {
   applyGoalsInterest,
   syncMetaCategoryName,
   deleteGoal,
+  revertGoalContribution,
 } from '../services/linker';
 import { storage } from '../services/storage';
 
@@ -76,19 +77,37 @@ export function MetasScreen() {
       );
     };
 
+    const handleRevert = () => {
+      const lastAporte = [...(item.aportes ?? [])]
+        .filter((a) => a.tipo !== 'rendimento')
+        .sort((a, b) => b.data.localeCompare(a.data))[0];
+      if (!lastAporte) return;
+      Alert.alert(
+        'Estornar último aporte',
+        `Vai remover o aporte de R$ ${lastAporte.valor.toFixed(2).replace('.', ',')} (${lastAporte.data}) e o lançamento associado. O valor voltará para o saldo.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Estornar', style: 'destructive', onPress: () => revertGoalContribution(item.id) },
+        ],
+      );
+    };
+
+    const hasManualAportes = (item.aportes ?? []).some((a) => a.tipo !== 'rendimento');
+
     if (Platform.OS === 'ios') {
+      const opts = ['Cancelar', 'Editar', ...(hasManualAportes ? ['Estornar último aporte'] : []), 'Excluir'];
       ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Cancelar', 'Editar', 'Excluir'],
-          cancelButtonIndex: 0,
-          destructiveButtonIndex: 2,
-          userInterfaceStyle: 'dark',
+        { options: opts, cancelButtonIndex: 0, destructiveButtonIndex: opts.length - 1, userInterfaceStyle: 'dark' },
+        (idx) => {
+          if (idx === 1) handleEdit();
+          else if (hasManualAportes && idx === 2) handleRevert();
+          else if (idx === opts.length - 1) handleDelete();
         },
-        (idx) => { if (idx === 1) handleEdit(); else if (idx === 2) handleDelete(); },
       );
     } else {
       Alert.alert(item.nome, undefined, [
         { text: 'Editar', onPress: handleEdit },
+        ...(hasManualAportes ? [{ text: 'Estornar último aporte', onPress: handleRevert }] : []),
         { text: 'Excluir', style: 'destructive', onPress: handleDelete },
         { text: 'Cancelar', style: 'cancel' },
       ]);

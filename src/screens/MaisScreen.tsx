@@ -16,15 +16,16 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../hooks/useAuth';
 import { useCategories } from '../hooks/useStorage';
-import { useMonthlyIncome } from '../hooks/useMonthlyIncome';
+import { useMonthlyIncome, calcRendaLiquida } from '../hooks/useMonthlyIncome';
 import { CategoryDot } from '../components/CategoryDot';
 import { PinPad } from '../components/PinPad';
 import { Icon, IconName } from '../components/Icon';
 import { MoneyText } from '../components/MoneyText';
 import { HistoricoModal } from './HistoricoModal';
+import { ImportPlanilhaModal } from './ImportPlanilhaModal';
 import { storage } from '../services/storage';
 import { notifications } from '../services/notifications';
-import { Category, RADIUS, SPACING, STORAGE_KEYS, AppTheme, AppIcon } from '../types';
+import { Category, RADIUS, SPACING, STORAGE_KEYS, AppTheme, AppIcon, SalarioAjuste } from '../types';
 import { useTheme } from '../hooks/useTheme';
 import {
   formatCurrency,
@@ -41,7 +42,7 @@ const PALETTE = [
 
 type ModalType =
   | null
-  | 'calc' | 'categorias' | 'seguranca' | 'backup' | 'sobre' | 'historico' | 'changePin' | 'renda' | 'aparencia';
+  | 'calc' | 'categorias' | 'seguranca' | 'backup' | 'sobre' | 'historico' | 'changePin' | 'renda' | 'aparencia' | 'perfil';
 
 interface MenuItem {
   id: ModalType;
@@ -84,6 +85,7 @@ export function MaisScreen() {
           title: 'Renda mensal',
           subtitle: rendaMensal > 0 ? formatCurrency(rendaMensal) : 'Ainda não definida',
         },
+        { id: 'perfil', icon: 'person-outline', title: 'Perfil', subtitle: 'Nome e CPF para comprovantes' },
         { id: 'aparencia', icon: 'color-palette-outline', title: 'Aparência', subtitle: getThemeText() },
         { id: 'categorias', icon: 'pricetag-outline', title: 'Categorias', subtitle: 'Personalize cores e nomes' },
         { id: 'seguranca', icon: 'shield-checkmark-outline', title: 'Segurança', subtitle: 'PIN, biometria, dados' },
@@ -137,6 +139,7 @@ export function MaisScreen() {
       </ScrollView>
 
       <HistoricoModal visible={modal === 'historico'} onClose={() => setModal(null)} />
+      <PerfilModal visible={modal === 'perfil'} onClose={() => setModal(null)} />
       <RendaModal visible={modal === 'renda'} onClose={() => setModal(null)} />
       <AparenciaModal visible={modal === 'aparencia'} onClose={() => setModal(null)} />
       <CalculatorModal visible={modal === 'calc'} onClose={() => setModal(null)} />
@@ -150,6 +153,89 @@ export function MaisScreen() {
       <BackupModal visible={modal === 'backup'} onClose={() => setModal(null)} />
       <SobreModal visible={modal === 'sobre'} onClose={() => setModal(null)} />
     </SafeAreaView>
+  );
+}
+
+function PerfilModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
+  const [nome, setNome] = useState('');
+  const [cpf, setCpf] = useState('');
+
+  React.useEffect(() => {
+    if (visible) {
+      storage.getSettings().then((s) => {
+        setNome(s.nomeCompleto ?? '');
+        setCpf(s.cpf ?? '');
+      });
+    }
+  }, [visible]);
+
+  const formatCpf = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+  };
+
+  const handleCpfChange = (text: string) => setCpf(formatCpf(text));
+
+  const handleSave = async () => {
+    const s = await storage.getSettings();
+    await storage.setSettings({ ...s, nomeCompleto: nome.trim(), cpf: cpf.trim() });
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe} edges={['top']}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={onClose}><Text style={styles.cancel}>Cancelar</Text></TouchableOpacity>
+          <Text style={styles.modalTitle}>Perfil</Text>
+          <TouchableOpacity onPress={handleSave}>
+            <Text style={[styles.cancel, { fontWeight: '700' }]}>Salvar</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
+          <View style={styles.infoCard}>
+            <Icon name="document-text-outline" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.infoTitle}>Para que serve?</Text>
+              <Text style={styles.infoText}>
+                Seu nome e CPF são usados para identificar se um comprovante PIX é uma receita ou despesa — comparando com pagador/recebedor do documento.
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.label}>Nome completo</Text>
+          <TextInput
+            value={nome}
+            onChangeText={setNome}
+            placeholder="Ex: João da Silva"
+            placeholderTextColor={colors.textMuted}
+            style={styles.input}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+
+          <Text style={styles.label}>CPF</Text>
+          <TextInput
+            value={cpf}
+            onChangeText={handleCpfChange}
+            placeholder="000.000.000-00"
+            placeholderTextColor={colors.textMuted}
+            style={styles.input}
+            keyboardType="numeric"
+          />
+
+          <Text style={styles.help}>
+            Esses dados ficam apenas no seu dispositivo e nunca são enviados a nenhum servidor.
+          </Text>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
   );
 }
 
@@ -231,52 +317,58 @@ function RendaModal({ visible, onClose }: { visible: boolean; onClose: () => voi
   const { colors } = useTheme();
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
-  const { config, rendaLiquida, setBase, setAjuste } = useMonthlyIncome();
+  const { base, ajustes, setBase, setAjustes } = useMonthlyIncome();
   const [valorRaw, setValorRaw] = useState('');
-  const [ajusteRaw, setAjusteRaw] = useState('');
-  const [ajusteTipo, setAjusteTipo] = useState<'soma' | 'subtracao'>('subtracao');
-  const [ajusteEhPct, setAjusteEhPct] = useState(false);
+  const [localAjustes, setLocalAjustes] = useState<SalarioAjuste[]>([]);
+  const [addingTipo, setAddingTipo] = useState<'soma' | 'subtracao' | null>(null);
+  const [newDesc, setNewDesc] = useState('');
+  const [newValorRaw, setNewValorRaw] = useState('');
+  const [newEhPct, setNewEhPct] = useState(false);
 
   React.useEffect(() => {
     if (visible) {
-      setValorRaw(config.base > 0 ? String(Math.round(config.base * 100)) : '');
-      if (config.ajusteEhPorcentagem) {
-        setAjusteRaw(config.ajusteValor ? String(config.ajusteValor) : '');
-      } else {
-        setAjusteRaw(config.ajusteValor > 0 ? String(Math.round(config.ajusteValor * 100)) : '');
-      }
-      setAjusteTipo(config.ajusteTipo);
-      setAjusteEhPct(config.ajusteEhPorcentagem);
+      setValorRaw(base > 0 ? String(Math.round(base * 100)) : '');
+      setLocalAjustes(ajustes);
+      setAddingTipo(null);
+      setNewDesc('');
+      setNewValorRaw('');
+      setNewEhPct(false);
     }
-  }, [visible, config]);
+  }, [visible, base, ajustes]);
 
   const handle = async () => {
     const valor = parseCurrencyInput(valorRaw);
-    if (valor < 0) return;
     await setBase(valor);
-    let ajusteNum = 0;
-    if (ajusteEhPct) {
-      ajusteNum = Number(ajusteRaw.replace(',', '.')) || 0;
-      if (ajusteNum < 0 || ajusteNum > 100) {
-        ajusteNum = Math.max(0, Math.min(100, ajusteNum));
-      }
-    } else {
-      ajusteNum = parseCurrencyInput(ajusteRaw);
-    }
-    await setAjuste(ajusteNum, ajusteTipo, ajusteEhPct);
+    await setAjustes(localAjustes);
     onClose();
   };
 
+  const commitAdd = () => {
+    if (!addingTipo) return;
+    const valor = newEhPct
+      ? (Number(newValorRaw.replace(',', '.')) || 0)
+      : parseCurrencyInput(newValorRaw);
+    if (valor <= 0) return;
+    const nova: SalarioAjuste = {
+      id: `ajuste-${Date.now()}`,
+      descricao: newDesc.trim() || (addingTipo === 'soma' ? 'Bônus' : 'Desconto'),
+      valor,
+      tipo: addingTipo,
+      ehPorcentagem: newEhPct,
+    };
+    setLocalAjustes((prev) => [...prev, nova]);
+    setAddingTipo(null);
+    setNewDesc('');
+    setNewValorRaw('');
+    setNewEhPct(false);
+  };
+
+  const removeAjuste = (id: string) => setLocalAjustes((prev) => prev.filter((a) => a.id !== id));
+
   const previewBase = parseCurrencyInput(valorRaw);
-  const previewAjusteNum = ajusteEhPct
-    ? Number(ajusteRaw.replace(',', '.')) || 0
-    : parseCurrencyInput(ajusteRaw);
-  const previewDelta = ajusteEhPct
-    ? (previewBase * previewAjusteNum) / 100
-    : previewAjusteNum;
-  const previewLiquida = ajusteTipo === 'soma'
-    ? previewBase + previewDelta
-    : Math.max(0, previewBase - previewDelta);
+  const previewLiquida = calcRendaLiquida(previewBase, localAjustes);
+
+  const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -288,17 +380,7 @@ function RendaModal({ visible, onClose }: { visible: boolean; onClose: () => voi
             <Text style={[styles.cancel, { fontWeight: '700' }]}>Salvar</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={styles.modalBody}>
-          <View style={styles.infoCard}>
-            <Icon name="wallet" size={20} color={colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.infoTitle}>O que é a renda mensal?</Text>
-              <Text style={styles.infoText}>
-                Seu salário base. Use o ajuste pra adicionar bônus fixo (+R$) ou descontar impostos/INSS (-%). A renda líquida é o valor que entra na projeção do Dashboard.
-              </Text>
-            </View>
-          </View>
-
+        <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>Salário base</Text>
           <TextInput
             value={formatCurrencyInput(valorRaw)}
@@ -308,82 +390,108 @@ function RendaModal({ visible, onClose }: { visible: boolean; onClose: () => voi
             autoFocus
           />
 
-          <Text style={styles.label}>Ajuste (opcional)</Text>
-          <View style={styles.segRow}>
-            <TouchableOpacity
-              style={[styles.segBtn, ajusteTipo === 'soma' && styles.segBtnActiveSum]}
-              onPress={() => setAjusteTipo('soma')}
-              activeOpacity={0.7}
-            >
-              <Icon
-                name="add"
-                size={14}
-                color={ajusteTipo === 'soma' ? '#0a0a0b' : colors.textSecondary}
-              />
-              <Text style={[styles.segText, ajusteTipo === 'soma' && { color: '#0a0a0b' }]}>
-                Somar
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.segBtn, ajusteTipo === 'subtracao' && styles.segBtnActiveSub]}
-              onPress={() => setAjusteTipo('subtracao')}
-              activeOpacity={0.7}
-            >
-              <Icon
-                name="remove"
-                size={14}
-                color={ajusteTipo === 'subtracao' ? '#0a0a0b' : colors.textSecondary}
-              />
-              <Text style={[styles.segText, ajusteTipo === 'subtracao' && { color: '#0a0a0b' }]}>
-                Subtrair
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={[styles.label, { marginTop: SPACING.xl }]}>Descontos e Bônus</Text>
 
-          <View style={styles.segRow}>
-            <TouchableOpacity
-              style={[styles.segBtn, !ajusteEhPct && styles.segBtnActive]}
-              onPress={() => setAjusteEhPct(false)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.segText, !ajusteEhPct && { color: colors.text }]}>R$ valor fixo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.segBtn, ajusteEhPct && styles.segBtnActive]}
-              onPress={() => setAjusteEhPct(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.segText, ajusteEhPct && { color: colors.text }]}>% porcentagem</Text>
-            </TouchableOpacity>
-          </View>
+          {localAjustes.map((a) => {
+            const sign = a.tipo === 'soma' ? '+' : '−';
+            const signColor = a.tipo === 'soma' ? colors.primary : colors.danger;
+            const valDisplay = a.ehPorcentagem
+              ? `${a.valor}%${previewBase > 0 ? ` (${fmtBRL((previewBase * a.valor) / 100)})` : ''}`
+              : fmtBRL(a.valor);
+            return (
+              <View key={a.id} style={styles.ajusteRow}>
+                <View style={[styles.ajusteSign, { backgroundColor: a.tipo === 'soma' ? colors.primarySoft : colors.dangerSoft }]}>
+                  <Text style={[styles.ajusteSignText, { color: signColor }]}>{sign}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.ajusteDesc}>{a.descricao}</Text>
+                  <Text style={[styles.ajusteValor, { color: signColor }]}>{sign} {valDisplay}</Text>
+                </View>
+                <TouchableOpacity onPress={() => removeAjuste(a.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Icon name="trash-outline" size={16} color={colors.danger} />
+                </TouchableOpacity>
+              </View>
+            );
+          })}
 
-          <TextInput
-            value={ajusteEhPct ? ajusteRaw : formatCurrencyInput(ajusteRaw)}
-            onChangeText={setAjusteRaw}
-            keyboardType="numeric"
-            placeholder={ajusteEhPct ? 'Ex: 10 para 10%' : 'R$ 0,00'}
-            placeholderTextColor={colors.textMuted}
-            style={[styles.input, { marginTop: SPACING.md }]}
-          />
+          {addingTipo ? (
+            <View style={styles.addForm}>
+              <TextInput
+                value={newDesc}
+                onChangeText={setNewDesc}
+                placeholder={addingTipo === 'soma' ? 'Ex: Bônus de vendas' : 'Ex: INSS'}
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                autoFocus
+              />
+              <View style={[styles.segRow, { marginTop: SPACING.md }]}>
+                <TouchableOpacity
+                  style={[styles.segBtn, !newEhPct && styles.segBtnActive]}
+                  onPress={() => setNewEhPct(false)} activeOpacity={0.7}
+                >
+                  <Text style={[styles.segText, !newEhPct && { color: colors.text }]}>R$ valor</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.segBtn, newEhPct && styles.segBtnActive]}
+                  onPress={() => setNewEhPct(true)} activeOpacity={0.7}
+                >
+                  <Text style={[styles.segText, newEhPct && { color: colors.text }]}>% porcentagem</Text>
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                value={newEhPct ? newValorRaw : formatCurrencyInput(newValorRaw)}
+                onChangeText={setNewValorRaw}
+                keyboardType="numeric"
+                placeholder={newEhPct ? 'Ex: 7.5' : 'R$ 0,00'}
+                placeholderTextColor={colors.textMuted}
+                style={[styles.input, { marginTop: SPACING.md }]}
+              />
+              <View style={[styles.segRow, { marginTop: SPACING.md }]}>
+                <TouchableOpacity
+                  style={styles.segBtn}
+                  onPress={() => setAddingTipo(null)} activeOpacity={0.7}
+                >
+                  <Text style={styles.segText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.segBtn, styles.segBtnActive]}
+                  onPress={commitAdd} activeOpacity={0.7}
+                >
+                  <Text style={[styles.segText, { color: colors.text }]}>Adicionar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.addAjusteBtns}>
+              <TouchableOpacity
+                style={[styles.addAjusteBtn, { borderColor: colors.danger }]}
+                onPress={() => setAddingTipo('subtracao')} activeOpacity={0.7}
+              >
+                <Icon name="remove-circle-outline" size={15} color={colors.danger} />
+                <Text style={[styles.addAjusteBtnText, { color: colors.danger }]}>Desconto</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addAjusteBtn, { borderColor: colors.primary }]}
+                onPress={() => setAddingTipo('soma')} activeOpacity={0.7}
+              >
+                <Icon name="add-circle-outline" size={15} color={colors.primary} />
+                <Text style={[styles.addAjusteBtnText, { color: colors.primary }]}>Bônus</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <View style={styles.previewCard}>
             <Text style={styles.previewLabel}>Renda líquida (entra na projeção)</Text>
-            <Text style={styles.previewValue}>
-              {previewLiquida.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </Text>
-            {previewAjusteNum > 0 && (
+            <Text style={styles.previewValue}>{fmtBRL(previewLiquida)}</Text>
+            {localAjustes.length > 0 && (
               <Text style={styles.previewBreakdown}>
-                {previewBase.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}{' '}
-                {ajusteTipo === 'soma' ? '+' : '−'}{' '}
-                {ajusteEhPct
-                  ? `${previewAjusteNum}% (${previewDelta.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})`
-                  : previewDelta.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                Salário {fmtBRL(previewBase)} com {localAjustes.length} ajuste{localAjustes.length > 1 ? 's' : ''}
               </Text>
             )}
           </View>
 
           <Text style={styles.help}>
-            Deixe zerado se preferir registrar tudo apenas como lançamentos reais.
+            Deixe o salário zerado se preferir registrar tudo apenas como lançamentos reais.
           </Text>
         </ScrollView>
       </SafeAreaView>
@@ -1051,6 +1159,7 @@ function BackupModal({ visible, onClose }: { visible: boolean; onClose: () => vo
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
   const [status, setStatus] = useState<string>('');
+  const [planilhaOpen, setPlanilhaOpen] = useState(false);
 
   const exportar = async () => {
     try {
@@ -1138,9 +1247,18 @@ function BackupModal({ visible, onClose }: { visible: boolean; onClose: () => vo
             <Text style={[styles.actionText, { marginLeft: 6 }]}>Importar backup</Text>
           </TouchableOpacity>
 
+          <View style={{ height: 1, backgroundColor: colors.borderSoft, marginVertical: SPACING.md }} />
+
+          <TouchableOpacity style={[styles.actionBtn, styles.actionMuted]} onPress={() => setPlanilhaOpen(true)}>
+            <Icon name="document-text-outline" size={18} color={colors.text} />
+            <Text style={[styles.actionText, { marginLeft: 6 }]}>Importar planilha CSV</Text>
+          </TouchableOpacity>
+
           {status ? <Text style={[styles.help, { marginTop: SPACING.lg }]}>{status}</Text> : null}
         </ScrollView>
       </SafeAreaView>
+
+      <ImportPlanilhaModal visible={planilhaOpen} onClose={() => setPlanilhaOpen(false)} />
     </Modal>
   );
 }
@@ -1294,6 +1412,31 @@ const getStyles = (colors: any) => StyleSheet.create({
   dangerBtnText: { color: colors.danger, fontSize: 14, fontWeight: '600' },
 
   help: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: SPACING.xl },
+
+  ajusteRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    backgroundColor: colors.card, padding: SPACING.md,
+    borderRadius: RADIUS.md, marginBottom: SPACING.sm,
+  },
+  ajusteSign: {
+    width: 32, height: 32, borderRadius: RADIUS.full,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  ajusteSignText: { fontSize: 18, fontWeight: '700' },
+  ajusteDesc: { color: colors.text, fontSize: 14, fontWeight: '500' },
+  ajusteValor: { fontSize: 12, marginTop: 2 },
+
+  addAjusteBtns: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
+  addAjusteBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: SPACING.sm, borderRadius: RADIUS.md,
+    borderWidth: 1, backgroundColor: 'transparent',
+  },
+  addAjusteBtnText: { fontSize: 14, fontWeight: '600' },
+  addForm: {
+    backgroundColor: colors.card, padding: SPACING.md,
+    borderRadius: RADIUS.md, marginTop: SPACING.sm,
+  },
 
   aboutLogo: {
     width: 80, height: 80, borderRadius: 20,
