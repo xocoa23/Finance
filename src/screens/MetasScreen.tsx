@@ -92,7 +92,7 @@ export function MetasScreen() {
       );
     };
 
-    const hasManualAportes = (item.aportes ?? []).some((a) => a.tipo !== 'rendimento');
+    const hasManualAportes = item.valorAtual > 0 && (item.aportes ?? []).some((a) => a.tipo !== 'rendimento');
 
     if (Platform.OS === 'ios') {
       const opts = ['Cancelar', 'Editar', ...(hasManualAportes ? ['Estornar último aporte'] : []), 'Excluir'];

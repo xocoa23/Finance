@@ -40,23 +40,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const colors = activeTheme === 'light' ? lightColors : darkColors;
 
   const applyAlternateIcon = useCallback(async (iconPref: AppIcon, effectiveTheme: 'dark' | 'light') => {
-    try {
-      const resolved = iconPref === 'auto' ? effectiveTheme : iconPref;
-      if (resolved === 'light') {
-        await setAlternateAppIcon('icon-light');
-      } else {
-        await setAlternateAppIcon(null);
-      }
-    } catch {
-      // Not supported outside native builds (Expo Go)
+    const resolved = iconPref === 'auto' ? effectiveTheme : iconPref;
+    if (resolved === 'light') {
+      await setAlternateAppIcon('icon-light');
+    } else {
+      // null resets to primary icon (CFBundlePrimaryIcon)
+      await setAlternateAppIcon(null);
     }
   }, []);
 
   const setIcon = useCallback(async (newIcon: AppIcon) => {
     setIconState(newIcon);
-    await applyAlternateIcon(newIcon, activeTheme);
+    // Persist preference first — icon change is best-effort
     const settings = await storage.getSettings();
     await storage.setSettings({ ...settings, iconePreferido: newIcon });
+    // Apply to OS — only works in native builds, fails silently elsewhere
+    applyAlternateIcon(newIcon, activeTheme).catch((e: any) => {
+      console.warn('[ThemeContext] setAlternateAppIcon falhou:', e?.message ?? String(e));
+    });
   }, [applyAlternateIcon, activeTheme]);
 
   useEffect(() => {
