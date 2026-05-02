@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { Alert, useColorScheme } from 'react-native';
 import { setAlternateAppIcon } from 'expo-alternate-app-icons';
 import { storage } from '../services/storage';
 import { AppTheme, AppIcon, darkColors, lightColors } from '../types';
@@ -56,7 +56,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     await storage.setSettings({ ...settings, iconePreferido: newIcon });
     // Apply to OS — only works in native builds, fails silently elsewhere
     applyAlternateIcon(newIcon, activeTheme).catch((e: any) => {
-      console.warn('[ThemeContext] setAlternateAppIcon falhou:', e?.message ?? String(e));
+      Alert.alert('Erro troca de ícone [DEBUG]', e?.message ?? String(e));
     });
   }, [applyAlternateIcon, activeTheme]);
 
