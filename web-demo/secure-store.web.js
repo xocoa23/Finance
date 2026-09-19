@@ -3,24 +3,18 @@
  *
  * No celular, os dados ficam no Keychain (iOS) / Keystore (Android). Na web esse
  * cofre não existe, então a demo guarda tudo no localStorage do próprio visitante.
- * Na primeira visita, preenche o app com dados FICTÍCIOS e com o PIN de demonstração 1234,
+ * Na primeira visita, preenche o app com dados FICTÍCIOS e com um PIN de demonstração
+ * (na web, qualquer combinação de 4 dígitos abre o app — ver crypto.web.js),
  * para quem abrir o portfólio ver o app em uso (e não uma tela vazia).
  */
 
 const PREFIX = 'secure:'
-const SEED_FLAG = 'demo:seeded:v1'
-const DEMO_PIN = '1234'
+const SEED_FLAG = 'demo:seeded:v2'
 const DEMO_SALT = '5f1d0c9a7e3b4a2c8d6e0f1a2b3c4d5e'
+// mesmo valor que crypto.web.js devolve para qualquer PIN
+const HASH_DEMO = 'pin-de-demonstracao-qualquer-combinacao'
 
 let seeding = null
-
-async function sha256Hex(text) {
-  const bytes = new TextEncoder().encode(text)
-  const digest = await crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
-}
 
 const pad = (n) => String(n).padStart(2, '0')
 const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -101,7 +95,7 @@ async function seedOnce() {
         localStorage.setItem(PREFIX + key, JSON.stringify(value))
       }
       localStorage.setItem(PREFIX + 'pin_salt', DEMO_SALT)
-      localStorage.setItem(PREFIX + 'pin_hash', await sha256Hex(`${DEMO_SALT}:${DEMO_PIN}:${DEMO_SALT}`))
+      localStorage.setItem(PREFIX + 'pin_hash', HASH_DEMO)
       localStorage.setItem(SEED_FLAG, '1')
     })()
   }
