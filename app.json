@@ -103,6 +103,9 @@
         "projectId": "31f97ff9-a4cf-4fa7-a5a9-3e879d9df425"
       }
     },
-    "owner": "xocoax"
+    "owner": "xocoax",
+    "experiments": {
+      "baseUrl": "/demos/finance"
+    }
   }
 }
